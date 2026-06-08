@@ -32,6 +32,7 @@ const (
 	MetricVerifications   = "verifications"
 	MetricReceiptViews    = "receipt_views"
 	MetricAbuseRejections = "abuse_rejections"
+	MetricEventsReceived  = "events_received"
 )
 
 // NewMetrics returns an initialized metric set.

@@ -18,6 +18,42 @@ const modeBadge = document.getElementById('pg-mode-badge');
 let config = { kermitEnabled: false, allowedFlows: ['golden-escrow'], modes: ['anonymous'] };
 let selectedMode = 'anonymous';
 
+// ---- onboarding analytics (adoption-12): OPT-IN, privacy-preserving ----
+// Disabled by default (hosted products require opt-in). When opted in, only
+// safe, redacted fields are sent (event, mode, result, proofLevel) — never an
+// account URL, key, proof bundle, or business data. The session id is a random
+// per-browser-session token (not tied to identity).
+const telemetry = {
+  key: 'pg:analytics:optin',
+  optedIn() {
+    try { return localStorage.getItem(this.key) === '1'; } catch { return false; }
+  },
+  setOptIn(on) {
+    try { localStorage.setItem(this.key, on ? '1' : '0'); } catch { /* ignore */ }
+  },
+  sessionId() {
+    try {
+      let s = sessionStorage.getItem('pg:analytics:sid');
+      if (!s) { s = 's_' + Math.random().toString(36).slice(2, 14); sessionStorage.setItem('pg:analytics:sid', s); }
+      return s;
+    } catch { return 's_anon'; }
+  },
+  emit(event, extra = {}) {
+    if (!this.optedIn()) return;
+    const body = {
+      version: '1',
+      time: new Date().toISOString(),
+      source: 'hosted',
+      sessionId: this.sessionId(),
+      event,
+      redacted: true,
+      ...extra,
+    };
+    // Fire-and-forget; never block or surface errors to the user.
+    try { fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {}); } catch { /* ignore */ }
+  },
+};
+
 // ---- helpers ----
 function el(tag, cls, text) {
   const n = document.createElement(tag);
@@ -103,6 +139,16 @@ function renderHome() {
   rd.href = '#/readiness';
   secondary.appendChild(rd);
   app.appendChild(secondary);
+
+  // adoption-12 — opt-in analytics toggle (off by default).
+  const optWrap = el('label', 'pg-analytics-optin');
+  const optBox = el('input');
+  optBox.type = 'checkbox';
+  optBox.checked = telemetry.optedIn();
+  optBox.addEventListener('change', () => telemetry.setOptIn(optBox.checked));
+  optWrap.appendChild(optBox);
+  optWrap.appendChild(el('span', null, ' Share anonymous onboarding analytics (opt-in; no keys, no proof contents, never your data)'));
+  app.appendChild(optWrap);
 }
 
 function actionCard(title, desc, onClick) {
@@ -181,9 +227,11 @@ async function startRun(mode) {
       }
     } else if (e.type === 'done' && e.receiptId) {
       src.close();
+      telemetry.emit('demo.completed', { mode: mode === 'kermit' ? 'kermit' : 'local', result: 'success' });
       location.hash = `#/r/${e.receiptId}`;
     } else if (e.type === 'error') {
       src.close();
+      telemetry.emit('error.step', { mode: mode === 'kermit' ? 'kermit' : 'local', result: 'failure' });
       showError(app, { message: e.error });
     }
   };
@@ -281,6 +329,7 @@ async function renderReceipt(id) {
     }
     try {
       const result = await verifyPortablePackage(pkg);
+      telemetry.emit('proof.verified', { result: result.passed ? 'success' : 'failure' });
       const browserReceipt = buildReceiptFromVerifier(result, {
         evidenceId: data.receipt && data.receipt.artifacts ? data.receipt.artifacts.evidenceId : '',
       });
@@ -303,6 +352,7 @@ async function renderReceipt(id) {
     const proof = bundleToCinemaProof(data.receipt, pkg);
     const { mountCinema } = await import('/cinema-core/loader.js');
     await mountCinema({ mode: 'cinema.proof', root: cinemaHost, proof });
+    telemetry.emit('cinema.opened', { result: 'success' });
   } catch (e) {
     cinemaHost.appendChild(el('div', 'pg-note', 'Replay unavailable in this browser.'));
   }
@@ -486,6 +536,7 @@ async function boot() {
     config = await api('/api/config');
     if (!config.kermitEnabled && selectedMode === 'kermit') selectedMode = 'anonymous';
   } catch { /* defaults stand */ }
+  telemetry.emit('page.loaded');
   window.addEventListener('hashchange', route);
   route();
 }

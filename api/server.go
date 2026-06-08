@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/AccumulateNetwork/infrix/hosted-playground/fixtures"
@@ -20,6 +21,7 @@ import (
 	"github.com/AccumulateNetwork/infrix/hosted-playground/worker"
 	"github.com/AccumulateNetwork/infrix/pkg/evidence"
 	"github.com/AccumulateNetwork/infrix/pkg/nexus"
+	"github.com/AccumulateNetwork/infrix/pkg/onboardingmetrics"
 	"github.com/AccumulateNetwork/infrix/pkg/proofreceipt"
 	"github.com/AccumulateNetwork/infrix/pkg/verifykit"
 )
@@ -39,6 +41,11 @@ type Server struct {
 	guard   *AbuseGuard
 	limiter *RateLimiter
 	nexusH  http.Handler
+
+	// Onboarding analytics (adoption-12): redacted, schema-validated events the
+	// browser posts. In-memory; privacy-preserving (no sensitive fields admitted).
+	eventsMu sync.Mutex
+	events   []onboardingmetrics.Event
 }
 
 // NewServer builds a Server from cfg.
@@ -84,6 +91,10 @@ func (s *Server) routes() {
 	mux.HandleFunc("GET /api/receipts/{id}", s.handleGetReceipt)
 	mux.HandleFunc("GET /api/receipts/{id}/bundle", s.handleGetBundle)
 	mux.HandleFunc("POST /api/verify", s.handleVerify)
+
+	// Onboarding analytics (adoption-12).
+	mux.HandleFunc("POST /api/events", s.handlePostEvent)
+	mux.HandleFunc("GET /api/events/summary", s.handleEventsSummary)
 
 	// Shared Nexus modules the SPA imports by absolute path. Served from the
 	// embedded Nexus asset tree so there is ONE canonical implementation.
