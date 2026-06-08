@@ -1,0 +1,10 @@
+{
+  "name": "infrix-playground-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Hosted playground browser app (adoption-09)",
+  "scripts": {
+    "test": "node --test \"test/bundleScene.test.mjs\""
+  }
+}

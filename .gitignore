@@ -1,0 +1,6 @@
+# Runtime share-linked receipts (the store writes these when --receipt-dir is set).
+receipts/*.run.json
+
+# Kermit-mode test identity key material — NEVER commit keys.
+playground-keys/
+*-keys/

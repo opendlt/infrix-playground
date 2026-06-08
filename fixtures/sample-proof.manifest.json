@@ -1,0 +1,8 @@
+{
+  "fixture": "portable-fixture.valid.json",
+  "sha256": "939f1062f2e5d92884849b275d19a702e611bbfa5f6062425afacf9d036ba3fb",
+  "generatedBy": "pkg/evidence TestDumpNexusPortableFixture",
+  "portableVersion": "4",
+  "goVerifier": "passed",
+  "browserVerifier": "passed"
+}

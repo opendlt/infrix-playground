@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Infrix Playground</title>
+  <meta name="description" content="Run a governed flow, watch it in Cinema, export a proof, and verify it in your browser — no install, no wallet, no funding." />
+  <!-- Shared Nexus design tokens (served from the embedded Nexus asset tree). -->
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/playground.css" />
+</head>
+<body>
+  <header class="pg-header">
+    <a class="pg-brand" href="#/" aria-label="Infrix Playground home">
+      <span class="pg-brand-mark">▰</span>
+      <span class="pg-brand-name">Infrix Playground</span>
+    </a>
+    <nav class="pg-nav" aria-label="Primary">
+      <a href="#/" data-nav="home">Home</a>
+      <a href="#/verify" data-nav="verify">Verify a proof</a>
+      <a href="#/readiness" data-nav="readiness">Readiness</a>
+    </nav>
+    <span class="pg-mode-badge" id="pg-mode-badge" hidden></span>
+  </header>
+
+  <main id="app" class="pg-main" aria-live="polite">
+    <!-- Views render here. -->
+  </main>
+
+  <footer class="pg-footer">
+    <span>Fixture-backed &amp; Kermit-backed demo. Not production infrastructure; does not prove mainnet readiness.</span>
+  </footer>
+
+  <script type="module" src="/playground.js"></script>
+</body>
+</html>
