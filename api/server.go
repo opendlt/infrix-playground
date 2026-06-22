@@ -23,7 +23,7 @@ import (
 	"github.com/AccumulateNetwork/infrix/pkg/nexus"
 	"github.com/AccumulateNetwork/infrix/pkg/onboardingmetrics"
 	"github.com/AccumulateNetwork/infrix/pkg/proofreceipt"
-	"github.com/AccumulateNetwork/infrix/pkg/verifykit"
+	"github.com/AccumulateNetwork/infrix-verify/verifykit"
 )
 
 // Server is the hosted-playground HTTP service (adoption-09). It serves the
