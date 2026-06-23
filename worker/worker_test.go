@@ -9,16 +9,43 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/AccumulateNetwork/infrix/hosted-playground/fixtures"
 )
 
-// TestFixtureRunnerProducesVerifiedL3Receipt is the fixture-runner unit test:
-// the anonymous path runs deterministically, produces a verified receipt, a
-// parseable portable bundle, and — critically — NEVER claims L4 (no live L0).
-func TestFixtureRunnerProducesVerifiedL3Receipt(t *testing.T) {
-	r := &Runner{} // no LiveAnchor → anonymous only
+// runFlowNode is a stand-in for the node's /v4/playground/runFlow endpoint: it
+// returns the known-good sample portable package so the thin client can be
+// exercised end-to-end (HTTP → offline verify → receipt) without running the
+// real flow stack.
+func runFlowNode(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v4/playground/runFlow" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		// Embed the sample package raw so the client decodes + verifies it.
+		body := []byte(`{"networkLabel":"local deterministic demo","proofLabel":"L3","l0Verified":false,"package":` + string(fixtures.SampleProof) + `}`)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+}
+
+// TestThinClientRunProducesVerifiedL3Receipt is the thin-client integration
+// test: the anonymous path calls the node, re-verifies the returned package
+// OFFLINE, produces a verified receipt, a parseable portable bundle, and —
+// critically — NEVER claims L4 (no live L0) and never requires node trust.
+func TestThinClientRunProducesVerifiedL3Receipt(t *testing.T) {
+	ts := runFlowNode(t)
+	defer ts.Close()
+
+	r := New(ts.URL, false) // anonymous only
+	r.HTTPClient = ts.Client()
 	if r.KermitEnabled() {
-		t.Fatal("Kermit must be disabled without a LiveAnchor")
+		t.Fatal("Kermit must be disabled without availability")
 	}
 
 	var steps []Step
@@ -67,13 +94,13 @@ func TestFixtureRunnerProducesVerifiedL3Receipt(t *testing.T) {
 }
 
 // TestKermitDisabledFailsClosed verifies the spec's "Kermit disabled fallback":
-// requesting Kermit mode without live wiring fails with a clear message, not a
-// crash or a fake result.
+// requesting Kermit mode without availability fails with a clear message, before
+// any node call — not a crash or a fake result.
 func TestKermitDisabledFailsClosed(t *testing.T) {
-	r := &Runner{}
+	r := New("http://127.0.0.1:0", false)
 	_, err := r.Run(context.Background(), ModeKermit, nil)
 	if err == nil {
-		t.Fatal("Kermit run with no live anchor must fail")
+		t.Fatal("Kermit run with no availability must fail")
 	}
 	if got := err.Error(); !contains(got, "disabled") {
 		t.Errorf("error should explain Kermit is disabled, got: %q", got)
@@ -81,7 +108,7 @@ func TestKermitDisabledFailsClosed(t *testing.T) {
 }
 
 func TestUnknownModeRejected(t *testing.T) {
-	r := &Runner{}
+	r := New("http://127.0.0.1:0", false)
 	if _, err := r.Run(context.Background(), Mode("bogus"), nil); err == nil {
 		t.Fatal("unknown mode must be rejected")
 	}

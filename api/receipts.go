@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/AccumulateNetwork/infrix/pkg/proofreceipt"
+	schemapr "github.com/opendlt/infrix-schema/proofreceipt"
 )
 
 // StoredRun is one completed playground run, keyed by a content-derived ID and
@@ -31,8 +31,8 @@ type StoredRun struct {
 	Network     string               `json:"network"`
 	ProofLabel  string               `json:"proofLabel"`
 	CreatedAt   time.Time            `json:"createdAt"`
-	Receipt     *proofreceipt.Receipt `json:"receipt"`
-	BundleJSON  json.RawMessage      `json:"bundle"`
+	Receipt     *schemapr.Receipt `json:"receipt"`
+	BundleJSON  json.RawMessage   `json:"bundle"`
 }
 
 // ReceiptStore persists completed runs in memory and, when a directory is

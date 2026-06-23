@@ -4,36 +4,35 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-// Package worker is the hosted-playground run executor (adoption-09). It runs a
-// golden governed flow — deterministically for the anonymous demo, or live
-// against Kermit when an operator has enabled it — and turns the result into a
-// downloadable portable proof bundle plus a canonical proof receipt.
+// Package worker is the hosted-playground run executor (adoption-09). It is a
+// THIN CLIENT: it asks an Infrix node to run a golden governed flow over the
+// /v4/playground/runFlow endpoint, then — critically — re-verifies the returned
+// portable evidence package OFFLINE with the published verifier (the SAME
+// verifykit the `infrix verify` CLI uses). The receipt is built from the
+// client's OWN verdict, so a playground run produces exactly the artifact a CLI
+// user would, with no trust in the node required to check it.
 //
-// It invents no proof logic of its own: the anonymous run reuses pkg/demo's
-// deterministic golden-escrow path, the live run reuses pkg/demo's Kermit path,
-// and verification goes through the same pkg/verifykit the `infrix verify` CLI
-// uses. The receipt is built by pkg/proofreceipt. So a playground run produces
-// exactly the artifact a CLI user would, with no node trust required to check
-// it.
+// It imports no monorepo pkg/*: the flow runs server-side (the node owns the
+// 50-package golden-escrow stack), and everything the client needs — the
+// portable-package type, the verifier, and the receipt converter — ships from
+// the published infrix-schema / infrix-verify modules.
 package worker
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
 	"time"
 
-	"github.com/AccumulateNetwork/infrix/pkg/demo"
-	"github.com/AccumulateNetwork/infrix/pkg/evidence"
-	"github.com/AccumulateNetwork/infrix/pkg/proofreceipt"
+	schemaev "github.com/opendlt/infrix-schema/evidence"
+	schemapr "github.com/opendlt/infrix-schema/proofreceipt"
+	verifypr "github.com/opendlt/infrix-verify/proofreceipt"
+	"github.com/opendlt/infrix-verify/verifykit"
 )
-
-// proofVerifiedAt returns the UTC timestamp the verification completed. Live
-// (L0-confirmed) receipts require a non-empty VerifiedAt to validate; the
-// anonymous path records it too for an honest audit trail.
-func proofVerifiedAt(_ *demo.FlowResult) string {
-	return time.Now().UTC().Format(time.RFC3339)
-}
 
 // Mode selects which backend a run uses.
 type Mode string
@@ -44,7 +43,8 @@ const (
 	ModeAnonymous Mode = "anonymous"
 	// ModeKermit is the live Kermit-sandbox path: a real L0 anchor confirmed
 	// against the Kermit testnet, reaching L4. Available only when the
-	// operator has wired a live anchor provider.
+	// operator has wired a live anchor provider on the node AND supplied this
+	// client an L0 confirmer so it can confirm the anchor independently.
 	ModeKermit Mode = "kermit"
 )
 
@@ -96,27 +96,69 @@ type RunResult struct {
 	Mode         Mode
 	NetworkLabel string
 	ProofLabel   string
-	Receipt      *proofreceipt.Receipt
-	Package      *evidence.PortableEvidencePackage
+	Receipt      *schemapr.Receipt
+	Package      *schemaev.PortableEvidencePackage
 	BundleJSON   []byte
 }
 
-// Runner executes playground runs. LiveAnchor is nil unless the operator has
-// enabled Kermit mode; when nil, ModeKermit runs fail closed with a clear
-// message (the spec's "Kermit disabled fallback").
+// Runner executes playground runs against a node's /v4/playground/runFlow
+// endpoint and verifies the result offline. It holds NO live-L0 wiring of its
+// own (that lives server-side); KermitAvailable advertises whether the node
+// offers live Kermit runs, and L0Confirmer — when supplied — lets this client
+// confirm a Kermit anchor against L0 INDEPENDENTLY (trusting the ledger, not the
+// Infrix node).
 type Runner struct {
-	// LiveAnchor supplies the live-L0 wiring for ModeKermit. nil disables
-	// Kermit mode.
-	LiveAnchor *demo.LiveAnchor
+	// Endpoint is the base URL of the Infrix node serving
+	// /v4/playground/runFlow (e.g. "http://127.0.0.1:8080").
+	Endpoint string
+	// HTTPClient overrides the default client (tests inject httptest). nil
+	// uses http.DefaultClient.
+	HTTPClient *http.Client
+	// KermitAvailable advertises that ModeKermit runs are offered. When false,
+	// ModeKermit fails closed with a clear message.
+	KermitAvailable bool
+	// L0Confirmer, when non-nil, confirms a Kermit run's L0 anchor
+	// independently so the client's offline verdict can reach L4. nil keeps
+	// every verdict capped at L3 (no node trust, no L0 reach).
+	L0Confirmer verifykit.L0AnchorConfirmer
 }
 
-// KermitEnabled reports whether live Kermit runs are available on this
-// instance.
-func (r *Runner) KermitEnabled() bool { return r != nil && r.LiveAnchor != nil }
+// New builds a Runner pointed at a node endpoint. kermitAvailable advertises
+// whether the node offers live Kermit runs.
+func New(endpoint string, kermitAvailable bool) *Runner {
+	return &Runner{Endpoint: endpoint, KermitAvailable: kermitAvailable}
+}
 
-// Run executes a governed flow in the requested mode, emitting progress steps
-// through emit (which may be nil). It returns the run result or an error; on
-// error the run is reported failed and no receipt is produced.
+// KermitEnabled reports whether live Kermit runs are available on this instance.
+func (r *Runner) KermitEnabled() bool { return r != nil && r.KermitAvailable }
+
+// runFlowRequest is the /v4/playground/runFlow request body. It mirrors
+// playgroundrpc.RunFlowParams (kept in lockstep by the parity fence in
+// pkg/playgroundrpc).
+type runFlowRequest struct {
+	Mode string `json:"mode"`
+	Flow string `json:"flow"`
+}
+
+// runFlowResponse is the /v4/playground/runFlow response body. It mirrors
+// playgroundrpc.RunFlowResult. The labels are informational; the client trusts
+// only its OWN re-verification of Package for the verdict.
+type runFlowResponse struct {
+	NetworkLabel string                            `json:"networkLabel"`
+	ProofLabel   string                            `json:"proofLabel"`
+	L0Verified   bool                              `json:"l0Verified"`
+	IntentID     string                            `json:"intentId"`
+	PlanID       string                            `json:"planId"`
+	OutcomeID    string                            `json:"outcomeId"`
+	BundleID     string                            `json:"bundleId"`
+	AnchorTx     string                            `json:"anchorTx"`
+	Package      *schemaev.PortableEvidencePackage `json:"package"`
+}
+
+// Run executes a governed flow in the requested mode by calling the node's
+// run-flow endpoint, then re-verifying the returned package offline. Progress
+// steps are emitted through emit (which may be nil). On error the run is
+// reported failed and no receipt is produced.
 func (r *Runner) Run(ctx context.Context, mode Mode, emit func(Step)) (*RunResult, error) {
 	send := func(s Step) {
 		if emit != nil {
@@ -124,24 +166,25 @@ func (r *Runner) Run(ctx context.Context, mode Mode, emit func(Step)) (*RunResul
 		}
 	}
 
-	var (
-		fr  *demo.FlowResult
-		err error
-	)
 	switch mode {
 	case ModeAnonymous:
-		fr, err = demo.RunLocal()
+		// always available
 	case ModeKermit:
 		if !r.KermitEnabled() {
 			return nil, fmt.Errorf("Kermit Sandbox mode is disabled on this instance — use Anonymous Demo mode, which runs the same governed flow deterministically without a wallet or funding")
 		}
-		fr, err = demo.RunKermit(ctx, r.LiveAnchor)
 	default:
 		return nil, fmt.Errorf("unknown run mode %q", mode)
 	}
+
+	resp, err := r.callRunFlow(ctx, mode)
 	if err != nil {
 		send(Step{Key: "run", Label: "Run failed", Status: StepFailed})
 		return nil, err
+	}
+	if resp.Package == nil {
+		send(Step{Key: "run", Label: "Run failed", Status: StepFailed})
+		return nil, fmt.Errorf("playground: node returned no portable package")
 	}
 
 	// Narrate the produced proof's structure as completed steps.
@@ -150,34 +193,91 @@ func (r *Runner) Run(ctx context.Context, mode Mode, emit func(Step)) (*RunResul
 		send(s)
 	}
 
-	bundleJSON, err := json.MarshalIndent(fr.Package, "", "  ")
+	// The trust-bearing step: re-verify the returned package OFFLINE with the
+	// canonical verifier. The node's labels are NEVER trusted for the verdict.
+	// Anonymous caps at L3; Kermit reaches L4 only when an L0 confirmer lets
+	// this client confirm the anchor against the ledger independently.
+	opts := verifykit.Options{}
+	if mode == ModeKermit {
+		opts.L0Confirmer = r.L0Confirmer
+	}
+	rep := verifykit.Verify(ctx, resp.Package, opts)
+
+	bundleJSON, err := json.MarshalIndent(resp.Package, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("playground: marshal portable bundle: %w", err)
 	}
 
 	verifyCmd := "infrix verify <bundle>.infrix.json"
 	if mode == ModeKermit {
-		verifyCmd = "infrix verify <bundle>.infrix.json --l0 " + fr.NetworkLabel
+		verifyCmd = "infrix verify <bundle>.infrix.json --l0 " + resp.NetworkLabel
 	}
-	receipt := proofreceipt.FromVerifyReport(fr.Report.VerifyReport, proofreceipt.VerifyConvertOptions{
-		SubjectType: proofreceipt.SubjectEvidence,
-		IntentID:    fr.Report.IntentID,
-		PlanID:      fr.Report.PlanID,
-		OutcomeID:   fr.Report.OutcomeID,
-		EvidenceID:  fr.Report.BundleID,
-		AnchorTx:    fr.Package.AnchorTxHash,
+	receipt := verifypr.FromVerifyReport(rep, verifypr.VerifyConvertOptions{
+		SubjectType: schemapr.SubjectEvidence,
+		IntentID:    resp.IntentID,
+		PlanID:      resp.PlanID,
+		OutcomeID:   resp.OutcomeID,
+		EvidenceID:  resp.BundleID,
+		AnchorTx:    resp.AnchorTx,
 		Verifier:    "infrix verify",
 		Command:     verifyCmd,
-		Network:     fr.NetworkLabel,
-		VerifiedAt:  proofVerifiedAt(fr),
+		Network:     resp.NetworkLabel,
+		VerifiedAt:  time.Now().UTC().Format(time.RFC3339),
 	})
 
 	return &RunResult{
 		Mode:         mode,
-		NetworkLabel: fr.NetworkLabel,
-		ProofLabel:   fr.Report.ProofLabel,
+		NetworkLabel: resp.NetworkLabel,
+		ProofLabel:   resp.ProofLabel,
 		Receipt:      receipt,
-		Package:      fr.Package,
+		Package:      resp.Package,
 		BundleJSON:   bundleJSON,
 	}, nil
+}
+
+// callRunFlow POSTs the run request to the node's run-flow endpoint and decodes
+// the response. The node's error message (if any) is surfaced.
+func (r *Runner) callRunFlow(ctx context.Context, mode Mode) (*runFlowResponse, error) {
+	if strings.TrimSpace(r.Endpoint) == "" {
+		return nil, fmt.Errorf("playground: no run-flow endpoint configured")
+	}
+	reqBody, err := json.Marshal(runFlowRequest{Mode: string(mode), Flow: FlowGoldenEscrow})
+	if err != nil {
+		return nil, fmt.Errorf("playground: encode run-flow request: %w", err)
+	}
+	url := strings.TrimRight(r.Endpoint, "/") + "/v4/playground/runFlow"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, fmt.Errorf("playground: build run-flow request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	client := r.HTTPClient
+	if client == nil {
+		client = http.DefaultClient
+	}
+	httpResp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("playground: call run-flow endpoint: %w", err)
+	}
+	defer httpResp.Body.Close()
+
+	body, _ := io.ReadAll(io.LimitReader(httpResp.Body, 8<<20))
+	if httpResp.StatusCode != http.StatusOK {
+		var e struct {
+			Error struct {
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		if json.Unmarshal(body, &e) == nil && e.Error.Message != "" {
+			return nil, fmt.Errorf("playground: run-flow failed: %s", e.Error.Message)
+		}
+		return nil, fmt.Errorf("playground: run-flow endpoint returned status %d", httpResp.StatusCode)
+	}
+
+	var resp runFlowResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("playground: decode run-flow response: %w", err)
+	}
+	return &resp, nil
 }

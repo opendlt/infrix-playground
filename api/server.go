@@ -19,10 +19,10 @@ import (
 	"github.com/AccumulateNetwork/infrix/hosted-playground/fixtures"
 	"github.com/AccumulateNetwork/infrix/hosted-playground/web"
 	"github.com/AccumulateNetwork/infrix/hosted-playground/worker"
-	"github.com/AccumulateNetwork/infrix/pkg/evidence"
-	"github.com/AccumulateNetwork/infrix/pkg/nexus"
-	"github.com/AccumulateNetwork/infrix/pkg/onboardingmetrics"
-	"github.com/AccumulateNetwork/infrix/pkg/proofreceipt"
+	nexusweb "github.com/opendlt/infrix-nexus-web"
+	schemaev "github.com/opendlt/infrix-schema/evidence"
+	schemaom "github.com/opendlt/infrix-schema/onboardingmetrics"
+	verifypr "github.com/opendlt/infrix-verify/proofreceipt"
 	"github.com/opendlt/infrix-verify/verifykit"
 )
 
@@ -45,7 +45,7 @@ type Server struct {
 	// Onboarding analytics (adoption-12): redacted, schema-validated events the
 	// browser posts. In-memory; privacy-preserving (no sensitive fields admitted).
 	eventsMu sync.Mutex
-	events   []onboardingmetrics.Event
+	events   []schemaom.Event
 }
 
 // NewServer builds a Server from cfg.
@@ -55,7 +55,7 @@ func NewServer(cfg Config) (*Server, error) {
 		return nil, err
 	}
 	metrics := NewMetrics()
-	runner := &worker.Runner{LiveAnchor: cfg.LiveAnchor}
+	runner := worker.New(cfg.RunFlowEndpoint, cfg.KermitAvailable)
 	s := &Server{
 		cfg:     cfg,
 		runner:  runner,
@@ -64,7 +64,7 @@ func NewServer(cfg Config) (*Server, error) {
 		metrics: metrics,
 		guard:   NewAbuseGuard(),
 		limiter: NewRateLimiter(cfg.RateLimit),
-		nexusH:  nexus.StaticHandler(),
+		nexusH:  nexusweb.StaticHandler(),
 	}
 	s.routes()
 	return s, nil
@@ -180,7 +180,7 @@ func (s *Server) handleShared(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := nexus.Asset(p)
+	data, err := nexusweb.Asset(p)
 	if err != nil {
 		http.NotFound(w, r)
 		return
@@ -279,7 +279,12 @@ func (s *Server) handleCreateRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	run := s.runs.Start(r.Context(), mode)
+	// The run is a fire-and-forget background job that outlives this request
+	// (we return 202 immediately and stream progress over SSE). It must NOT use
+	// the request context, which is canceled the moment this handler returns —
+	// the run-flow call to the node would be aborted. Detach to a background
+	// context.
+	run := s.runs.Start(context.Background(), mode)
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"id":    run.ID,
 		"mode":  mode,
@@ -368,7 +373,7 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body := http.MaxBytesReader(w, r.Body, s.guard.MaxUploadBytes())
-	var pkg evidence.PortableEvidencePackage
+	var pkg schemaev.PortableEvidencePackage
 	if err := json.NewDecoder(body).Decode(&pkg); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid portable evidence package JSON")
 		return
@@ -376,7 +381,7 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 	s.metrics.Inc(MetricVerifications)
 
 	rep := verifykit.Verify(r.Context(), &pkg, verifykit.Options{}) // offline — no node trust, caps at L3
-	receipt := proofreceipt.FromVerifyReport(rep, proofreceipt.VerifyConvertOptions{
+	receipt := verifypr.FromVerifyReport(rep, verifypr.VerifyConvertOptions{
 		Verifier: "infrix verify (playground, offline)",
 		Command:  "infrix verify <bundle>.infrix.json",
 	})

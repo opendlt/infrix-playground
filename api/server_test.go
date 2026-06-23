@@ -30,6 +30,23 @@ func newTestServer(t *testing.T, cfg Config) *httptest.Server {
 	return ts
 }
 
+// newRunFlowNode stands in for the Infrix node's /v4/playground/runFlow
+// endpoint: it returns the known-good sample portable package so a thin-client
+// run completes and the client re-verifies it offline. Returns the base URL.
+func newRunFlowNode(t *testing.T) string {
+	t.Helper()
+	node := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v4/playground/runFlow" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"networkLabel":"local deterministic demo","proofLabel":"L3","l0Verified":false,"package":` + string(fixtures.SampleProof) + `}`))
+	}))
+	t.Cleanup(node.Close)
+	return node.URL
+}
+
 func getJSON(t *testing.T, url string) (int, map[string]any) {
 	t.Helper()
 	res, err := http.Get(url)
@@ -87,6 +104,7 @@ func waitForReceipt(t *testing.T, base, runID string) string {
 // link resolves — with no wallet, no funding, and no L4 claim.
 func TestAnonymousGoldenFlow(t *testing.T) {
 	cfg := DefaultConfig()
+	cfg.RunFlowEndpoint = newRunFlowNode(t)
 	cfg.RateLimit = RateLimitConfig{Burst: 50, PerMinute: 600}
 	ts := newTestServer(t, cfg)
 
@@ -162,7 +180,7 @@ func TestProofUploadVerify(t *testing.T) {
 // TestKermitDisabledFallback: requesting Kermit when disabled returns a clear,
 // labeled refusal (409), not a crash or a fake run.
 func TestKermitDisabledFallback(t *testing.T) {
-	ts := newTestServer(t, DefaultConfig()) // LiveAnchor nil → disabled
+	ts := newTestServer(t, DefaultConfig()) // kermit unavailable → disabled
 	code, body := postJSON(t, ts.URL+"/api/runs", map[string]string{"mode": "kermit"})
 	if code != http.StatusConflict {
 		t.Fatalf("kermit-disabled = %d, want 409", code)
@@ -183,6 +201,7 @@ func TestKermitDisabledFallback(t *testing.T) {
 // TestRateLimitExceeded: a tiny burst rejects the over-limit request with 429.
 func TestRateLimitExceeded(t *testing.T) {
 	cfg := DefaultConfig()
+	cfg.RunFlowEndpoint = newRunFlowNode(t)
 	cfg.RateLimit = RateLimitConfig{Burst: 1, PerMinute: 1}
 	ts := newTestServer(t, cfg)
 

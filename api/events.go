@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/AccumulateNetwork/infrix/pkg/onboardingmetrics"
+	schemaom "github.com/opendlt/infrix-schema/onboardingmetrics"
 )
 
 // handlePostEvent ingests one onboarding analytics event from the browser
@@ -27,15 +27,15 @@ func (s *Server) handlePostEvent(w http.ResponseWriter, r *http.Request) {
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10))
 	dec.DisallowUnknownFields()
 
-	var e onboardingmetrics.Event
+	var e schemaom.Event
 	if err := dec.Decode(&e); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid event: "+err.Error())
 		return
 	}
 	// Hosted events must declare their source as the browser surfaces.
-	if e.Source != onboardingmetrics.SourceNexus &&
-		e.Source != onboardingmetrics.SourceCinema &&
-		e.Source != onboardingmetrics.SourceHosted {
+	if e.Source != schemaom.SourceNexus &&
+		e.Source != schemaom.SourceCinema &&
+		e.Source != schemaom.SourceHosted {
 		writeJSONError(w, http.StatusBadRequest, "event source must be nexus|cinema|hosted")
 		return
 	}
@@ -44,13 +44,13 @@ func (s *Server) handlePostEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Reject non-redacted sensitive submissions outright.
-	if field, bad := onboardingmetrics.SensitiveField(&e); bad {
+	if field, bad := schemaom.SensitiveField(&e); bad {
 		s.metrics.Inc(MetricAbuseRejections)
 		writeJSONError(w, http.StatusBadRequest, "event field "+field+" carries sensitive data; send redacted events only")
 		return
 	}
 
-	stored := onboardingmetrics.Redact(e)
+	stored := schemaom.Redact(e)
 	s.eventsMu.Lock()
 	s.events = append(s.events, stored)
 	s.eventsMu.Unlock()
@@ -63,7 +63,7 @@ func (s *Server) handlePostEvent(w http.ResponseWriter, r *http.Request) {
 // from the events received this session.
 func (s *Server) handleEventsSummary(w http.ResponseWriter, r *http.Request) {
 	s.eventsMu.Lock()
-	events := append([]onboardingmetrics.Event(nil), s.events...)
+	events := append([]schemaom.Event(nil), s.events...)
 	s.eventsMu.Unlock()
-	writeJSON(w, http.StatusOK, onboardingmetrics.Summarize(events))
+	writeJSON(w, http.StatusOK, schemaom.Summarize(events))
 }
