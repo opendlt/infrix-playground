@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.7'
+      # The thin client: HTTP client of /v4/playground/runFlow + offline verify.
+      # It depends only on the published infrix-schema / infrix-verify /
+      # infrix-nexus-web modules (no monorepo pkg/*).
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go test ./... -count=1
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # The playground SPA's bundle-scene smokes (the proof-receipt scene
+      # builder). Pure Node, no install needed.
+      - run: node --test web/test/*.mjs

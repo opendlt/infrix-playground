@@ -1,0 +1,6 @@
+github.com/opendlt/infrix-nexus-web v0.1.0 h1:F1kJb9n6knm3WustyEKDwHgO3UykVSs0bUzjd2wkn00=
+github.com/opendlt/infrix-nexus-web v0.1.0/go.mod h1:EuTJis01ncPUcPYw/Qz7hqaS/I7PguANx6rQSzWUVpc=
+github.com/opendlt/infrix-schema v0.2.0 h1:pDk9ia/B8Kn40rCa+iY99pqoQryq26XQzRpS09TSbH8=
+github.com/opendlt/infrix-schema v0.2.0/go.mod h1:OoF2gfDsX6psP8o08fcp0xAIUA8UrwvbXcokKlY5hVg=
+github.com/opendlt/infrix-verify v0.2.0 h1:qusgBq4k479nw3EipZi3dw7c+J8yuDX4TljBLCKzbHk=
+github.com/opendlt/infrix-verify v0.2.0/go.mod h1:Cf4s1Ge3IsTLEHD1m/6BMWCrWfnbpLn83kycD/4loks=

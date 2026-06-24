@@ -16,9 +16,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/AccumulateNetwork/infrix/hosted-playground/fixtures"
-	"github.com/AccumulateNetwork/infrix/hosted-playground/web"
-	"github.com/AccumulateNetwork/infrix/hosted-playground/worker"
+	"github.com/opendlt/infrix-playground/fixtures"
+	"github.com/opendlt/infrix-playground/web"
+	"github.com/opendlt/infrix-playground/worker"
 	nexusweb "github.com/opendlt/infrix-nexus-web"
 	schemaev "github.com/opendlt/infrix-schema/evidence"
 	schemaom "github.com/opendlt/infrix-schema/onboardingmetrics"

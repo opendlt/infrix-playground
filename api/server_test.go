@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AccumulateNetwork/infrix/hosted-playground/fixtures"
+	"github.com/opendlt/infrix-playground/fixtures"
 )
 
 func newTestServer(t *testing.T, cfg Config) *httptest.Server {

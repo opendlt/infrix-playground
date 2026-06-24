@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AccumulateNetwork/infrix/pkg/proofreceipt"
+	proofreceipt "github.com/opendlt/infrix-schema/proofreceipt"
 )
 
 func sampleReceipt(id string) *proofreceipt.Receipt {

@@ -12,7 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/AccumulateNetwork/infrix/hosted-playground/worker"
+	"github.com/opendlt/infrix-playground/worker"
 )
 
 // RunState is the lifecycle of a playground run.

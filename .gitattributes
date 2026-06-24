@@ -1,0 +1,4 @@
+# Normalize line endings to LF in the repo so byte-pinned fixtures (the
+# sample-proof package + its sha256 manifest) stay stable across clones,
+# regardless of a contributor's core.autocrlf setting.
+* text=auto eol=lf

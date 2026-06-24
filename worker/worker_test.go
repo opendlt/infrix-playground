@@ -13,7 +13,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/AccumulateNetwork/infrix/hosted-playground/fixtures"
+	"github.com/opendlt/infrix-playground/fixtures"
 )
 
 // runFlowNode is a stand-in for the node's /v4/playground/runFlow endpoint: it

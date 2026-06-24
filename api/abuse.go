@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/AccumulateNetwork/infrix/hosted-playground/worker"
+	"github.com/opendlt/infrix-playground/worker"
 )
 
 // AbuseGuard enforces the hosted-playground's safety envelope (adoption-09):
