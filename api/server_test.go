@@ -269,8 +269,10 @@ func TestSPAandSharedAssets(t *testing.T) {
 		t.Error("index did not render the playground shell")
 	}
 
-	// A shared module the SPA imports by absolute path.
-	for _, p := range []string{"/lib/portableVerifier.js", "/components/proofReceiptView.js", "/cinema-core/loader.js", "/playground.js", "/styles.css"} {
+	// A shared module the SPA imports by absolute path, plus the playground's own
+	// embedded modules (checkMatrix.js is served from the root, not /components/,
+	// because the /components/ prefix is owned by the shared Nexus handler).
+	for _, p := range []string{"/lib/portableVerifier.js", "/lib/canonicalJson.js", "/components/proofReceiptView.js", "/cinema-core/loader.js", "/playground.js", "/checkMatrix.js", "/tamper.js", "/spine.js", "/styles.css"} {
 		r, err := http.Get(ts.URL + p)
 		if err != nil {
 			t.Fatal(err)
@@ -279,5 +281,48 @@ func TestSPAandSharedAssets(t *testing.T) {
 		if r.StatusCode != http.StatusOK {
 			t.Errorf("asset %s = %d, want 200", p, r.StatusCode)
 		}
+	}
+
+	// The verdict-matrix module must be served as JavaScript with real content —
+	// the SPA imports it by absolute path, so a 404 or wrong type breaks the page.
+	r, err := http.Get(ts.URL + "/checkMatrix.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmBody, _ := io.ReadAll(r.Body)
+	r.Body.Close()
+	if ct := r.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/javascript") {
+		t.Errorf("/checkMatrix.js Content-Type = %q, want application/javascript", ct)
+	}
+	if !bytes.Contains(cmBody, []byte("mountCheckMatrix")) {
+		t.Error("/checkMatrix.js did not serve the matrix module body")
+	}
+
+	// The Tamper Lab forgery engine is a root-served playground module too.
+	tr, err := http.Get(ts.URL + "/tamper.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tBody, _ := io.ReadAll(tr.Body)
+	tr.Body.Close()
+	if ct := tr.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/javascript") {
+		t.Errorf("/tamper.js Content-Type = %q, want application/javascript", ct)
+	}
+	if !bytes.Contains(tBody, []byte("applyForgery")) {
+		t.Error("/tamper.js did not serve the forgery-engine module body")
+	}
+
+	// The Run Theater spine is a root-served playground module too.
+	sr, err := http.Get(ts.URL + "/spine.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sBody, _ := io.ReadAll(sr.Body)
+	sr.Body.Close()
+	if ct := sr.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/javascript") {
+		t.Errorf("/spine.js Content-Type = %q, want application/javascript", ct)
+	}
+	if !bytes.Contains(sBody, []byte("mountSpine")) {
+		t.Error("/spine.js did not serve the spine module body")
 	}
 }

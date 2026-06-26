@@ -21,6 +21,7 @@ package worker
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -68,6 +69,13 @@ type Step struct {
 	Key    string     `json:"key"`
 	Label  string     `json:"label"`
 	Status StepStatus `json:"status"`
+	// Hash is a short (8-byte) hex of the REAL artifact this stage corresponds
+	// to in the produced evidence package — the chain link's content hash, the
+	// anchored chain digest, or the export seal. It lets the UI's spine show the
+	// proof's own cryptographic structure rather than decoration. Empty for
+	// stages with no stored artifact (e.g. the final independent verify), or when
+	// the package cannot be parsed. omitempty so failure/skeleton steps stay lean.
+	Hash string `json:"hash,omitempty"`
 }
 
 // flowSteps is the canonical, ordered narration of the golden-escrow governed
@@ -187,9 +195,13 @@ func (r *Runner) Run(ctx context.Context, mode Mode, emit func(Step)) (*RunResul
 		return nil, fmt.Errorf("playground: node returned no portable package")
 	}
 
-	// Narrate the produced proof's structure as completed steps.
+	// Narrate the produced proof's structure as completed steps, each carrying
+	// the REAL hash of the artifact it corresponds to in the package — so the
+	// UI's spine renders the proof's own structure, not decoration.
+	hashes := stepHashes(resp.Package)
 	for _, s := range flowSteps {
 		s.Status = StepComplete
+		s.Hash = hashes[s.Key]
 		send(s)
 	}
 
@@ -233,6 +245,73 @@ func (r *Runner) Run(ctx context.Context, mode Mode, emit func(Step)) (*RunResul
 		Package:      resp.Package,
 		BundleJSON:   bundleJSON,
 	}, nil
+}
+
+// stepHashes maps each flow step key to a short (8-byte) hex of the real
+// artifact hash it corresponds to in the produced package, so the UI shows the
+// proof's own cryptographic structure. The mapping is honest and explicit:
+//
+//	intent/plan/policy/approval/credential/outcome → the matching evidence-chain
+//	    link's content hash (policy via the "policy_decision" link; credential via
+//	    the external-proof / trust-assumption link that records the delivery
+//	    condition);
+//	anchor → the chain digest that is anchored to L0 (chain.ChainHash);
+//	export → the package's own ExportHash seal;
+//	verify → no stored artifact (the verdict is computed, not stored) → no hash.
+//
+// Returns a map that is simply missing keys it cannot resolve (e.g. a step whose
+// link is absent, or when BundleData fails to parse) — callers treat a missing
+// hash as "no hash line", never a fake one.
+func stepHashes(pkg *schemaev.PortableEvidencePackage) map[string]string {
+	out := map[string]string{}
+	if pkg == nil {
+		return out
+	}
+	short := func(b []byte) string {
+		if len(b) == 0 {
+			return ""
+		}
+		return hex.EncodeToString(b[:min(len(b), 8)])
+	}
+	set := func(key, h string) {
+		if h != "" {
+			out[key] = h
+		}
+	}
+
+	// The export seal lives on the package itself.
+	eh := pkg.ExportHash
+	set("export", short(eh[:]))
+
+	var bundle schemaev.EvidenceBundle
+	if err := json.Unmarshal(pkg.BundleData, &bundle); err != nil {
+		return out
+	}
+	if bundle.Chain != nil {
+		byType := map[string]string{}
+		for i := range bundle.Chain.Links {
+			ch := bundle.Chain.Links[i].ContentHash
+			byType[bundle.Chain.Links[i].Type] = short(ch[:])
+		}
+		link := func(types ...string) string {
+			for _, t := range types {
+				if h, ok := byType[t]; ok {
+					return h
+				}
+			}
+			return ""
+		}
+		set("intent", link("intent"))
+		set("plan", link("plan"))
+		set("policy", link("policy_decision", "policy"))
+		set("approval", link("approval"))
+		set("credential", link("external_proof", "credential", "trust_assumption"))
+		set("outcome", link("outcome"))
+		// The anchor stage shows the chain digest that is anchored to L0.
+		cdigest := bundle.Chain.ChainHash
+		set("anchor", short(cdigest[:]))
+	}
+	return out
 }
 
 // callRunFlow POSTs the run request to the node's run-flow endpoint and decodes

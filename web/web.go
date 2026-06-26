@@ -28,6 +28,15 @@ var playgroundCSS []byte
 //go:embed bundleScene.js
 var bundleSceneJS []byte
 
+//go:embed checkMatrix.js
+var checkMatrixJS []byte
+
+//go:embed tamper.js
+var tamperJS []byte
+
+//go:embed spine.js
+var spineJS []byte
+
 // File is one embedded playground asset.
 type File struct {
 	Body        []byte
@@ -43,6 +52,9 @@ func Assets() map[string]File {
 		"/playground.js":  {Body: playgroundJS, ContentType: "application/javascript; charset=utf-8"},
 		"/playground.css": {Body: playgroundCSS, ContentType: "text/css; charset=utf-8"},
 		"/bundleScene.js": {Body: bundleSceneJS, ContentType: "application/javascript; charset=utf-8"},
+		"/checkMatrix.js": {Body: checkMatrixJS, ContentType: "application/javascript; charset=utf-8"},
+		"/tamper.js":      {Body: tamperJS, ContentType: "application/javascript; charset=utf-8"},
+		"/spine.js":       {Body: spineJS, ContentType: "application/javascript; charset=utf-8"},
 	}
 }
 

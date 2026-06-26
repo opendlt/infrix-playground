@@ -12,14 +12,20 @@
 <body>
   <header class="pg-header">
     <a class="pg-brand" href="#/" aria-label="Infrix Playground home">
-      <span class="pg-brand-mark">▰</span>
+      <span class="pg-brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 80 10" role="img">
+          <circle cx="5" cy="5" r="4" /><circle cx="17" cy="5" r="4" /><circle cx="29" cy="5" r="4" /><circle cx="41" cy="5" r="4" /><circle cx="53" cy="5" r="4" /><circle cx="65" cy="5" r="4" /><circle cx="77" cy="5" r="4" />
+        </svg>
+      </span>
       <span class="pg-brand-name">Infrix Playground</span>
     </a>
     <nav class="pg-nav" aria-label="Primary">
       <a href="#/" data-nav="home">Home</a>
       <a href="#/verify" data-nav="verify">Verify a proof</a>
-      <a href="#/readiness" data-nav="readiness">Readiness</a>
+      <a href="#/lab" data-nav="lab">Tamper Lab</a>
+      <a href="#/status" data-nav="status">What it can do</a>
     </nav>
+    <button id="pg-theme" class="pg-theme-btn" type="button" aria-label="Switch theme" title="Switch theme">☾</button>
     <span class="pg-mode-badge" id="pg-mode-badge" hidden></span>
   </header>
 

@@ -93,6 +93,48 @@ func TestThinClientRunProducesVerifiedL3Receipt(t *testing.T) {
 	}
 }
 
+// TestRunStepsCarryRealChainHashes is the RB-03 (Run Theater) backend contract:
+// each chain-backed step carries the REAL 8-byte hex of its artifact hash so the
+// UI's spine shows the proof's own structure, the "verify" meta-step carries no
+// hash, and the values match the fixture exactly (no decoration).
+func TestRunStepsCarryRealChainHashes(t *testing.T) {
+	ts := runFlowNode(t)
+	defer ts.Close()
+	r := New(ts.URL, false)
+	r.HTTPClient = ts.Client()
+
+	var steps []Step
+	if _, err := r.Run(context.Background(), ModeAnonymous, func(s Step) { steps = append(steps, s) }); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	hashOf := map[string]string{}
+	for _, s := range steps {
+		if s.Status == StepComplete {
+			hashOf[s.Key] = s.Hash
+		}
+	}
+
+	// Every chain-backed stage (plus the anchor digest and the export seal) must
+	// carry a non-empty 16-hex-char (8-byte) hash.
+	for _, key := range []string{"intent", "plan", "policy", "approval", "credential", "outcome", "anchor", "export"} {
+		h := hashOf[key]
+		if len(h) != 16 {
+			t.Errorf("step %q hash = %q, want 16 hex chars (8 bytes)", key, h)
+		}
+	}
+	// The "verify" meta-step records no stored artifact.
+	if hashOf["verify"] != "" {
+		t.Errorf("verify step must carry no hash, got %q", hashOf["verify"])
+	}
+	// The intent hash must match the fixture's first chain link content hash
+	// (first 8 bytes), proving the value is real and not decoration.
+	const wantIntent = "f660e00519777cde"
+	if hashOf["intent"] != wantIntent {
+		t.Errorf("intent hash = %q, want %q (fixture chain link[0])", hashOf["intent"], wantIntent)
+	}
+}
+
 // TestKermitDisabledFailsClosed verifies the spec's "Kermit disabled fallback":
 // requesting Kermit mode without availability fails with a clear message, before
 // any node call — not a crash or a fake result.
