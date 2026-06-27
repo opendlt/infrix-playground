@@ -12,6 +12,53 @@ A no-install, browser-first way to feel Infrix:
 
 This is the easiest way to understand Infrix's value before installing anything.
 
+## Why this exists
+
+Every system that produces "verifiable" results faces the same hard question:
+*why should I believe the proof?* Most explorers answer "because our node says
+so." Infrix's answer is different, and this playground exists to let a skeptic
+**feel that difference in 30 seconds, with nothing installed.**
+
+Infrix runs **governed flows** (e.g. an escrow: intent → plan → policy →
+approval → credential → outcome → anchor) and emits a **portable evidence
+package** — a self-contained cryptographic proof that the flow ran correctly
+under its governance rules. The playground's whole job is to prove that package
+is trustworthy **without asking you to trust the playground.**
+
+It does that by being a **thin client**: the node *runs* the flow, but your
+browser **re-verifies the returned proof locally**, with the same published
+verifier the CLI uses. The node is a runner, never a trusted verifier — so even
+this demo's own server cannot fake a passing result. The verdict is maths you
+re-run yourself.
+
+### The value proposition
+
+> **Run a real governed flow and verify its proof in your own browser — against a
+> server you don't have to trust — with no install, no wallet, and no funding.**
+
+### What you can actually do here
+
+- **Watch the proof build itself.** The governed flow assembles stage by stage,
+  each step emitting its real hash, hash-linked to the one before it.
+- **See the verdict, not a verdict.** Verification runs *in your browser* and
+  shows all ten cryptographic checks — each with a plain-language "what this
+  proves" — reconstructed locally, no node trusted.
+- **Try to break it.** The **Tamper Lab** lets you forge a field and watch the
+  maths catch you at the exact broken link. Failing to beat tamper-evidence is
+  the fastest way to believe in it.
+- **Bring your own proof.** Drop or paste any `*.infrix.json` bundle and verify
+  it entirely client-side — no login, nothing uploaded to us.
+- **Share the receipt.** Send a passing proof to someone who re-verifies it
+  themselves.
+
+### Who it's for, and the job it does
+
+It's for a developer or technical evaluator deciding whether Infrix's
+"verifiable governance" claim is real. The job it does is to convert *"sounds
+like marketing"* into *"I personally watched it prove itself, and I couldn't
+forge it"* — **before** they install anything. It is a **trust-demonstration
+tool**, not a flow runner with a UI bolted on.
+
 ## Architecture — a thin client
 
 The playground is a **thin client**. It does **not** run flows in-process. It
