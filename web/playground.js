@@ -132,6 +132,8 @@ function renderHome() {
   hero.appendChild(el('h1', null, 'See a governed deal prove itself.'));
   hero.appendChild(el('p', null,
     'Run it, then verify every cryptographic link in your own browser. No install, no wallet, no trust in us.'));
+  hero.appendChild(el('p', 'pg-home-why',
+    'Infrix is governed, verifiable execution on Accumulate. Most chains say "valid because our node says so." Infrix hands you a proof you re-verify yourself — against a server you don’t have to trust.'));
 
   // One primary CTA + quiet side-doors.
   const cta = el('div', 'pg-home-cta');
@@ -170,6 +172,17 @@ function renderHome() {
   const st = el('a', 'pg-home-foot-link', 'What it can do →');
   st.href = '#/status';
   foot.appendChild(st);
+
+  // Next steps — never leave a convinced visitor at a dead end.
+  const cliLink = el('a', 'pg-home-foot-link', 'Install the CLI →');
+  cliLink.href = 'https://github.com/opendlt/infrix-cli'; cliLink.target = '_blank'; cliLink.rel = 'noopener';
+  foot.appendChild(cliLink);
+  const sdkLink = el('a', 'pg-home-foot-link', 'Build with the SDK →');
+  sdkLink.href = 'https://github.com/opendlt/infrix-sdk-js'; sdkLink.target = '_blank'; sdkLink.rel = 'noopener';
+  foot.appendChild(sdkLink);
+  const ghLink = el('a', 'pg-home-foot-link', 'GitHub →');
+  ghLink.href = 'https://github.com/opendlt'; ghLink.target = '_blank'; ghLink.rel = 'noopener';
+  foot.appendChild(ghLink);
 
   const optWrap = el('label', 'pg-analytics-optin');
   const optBox = el('input');
