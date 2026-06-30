@@ -90,6 +90,32 @@ testnet only, mainnet is refused):
 go run ./cmd/infrix-playground --kermit --kermit-l0 kermit
 ```
 
+## Deploy
+
+The playground ships as a container (pure-Go, distroless; `web/` and `fixtures/`
+are embedded, so the image is just the static binary). CI builds it on every PR
+and publishes `ghcr.io/opendlt/infrix-playground` on `main` and `v*` tags.
+
+```sh
+docker run --rm -p 8086:8086 \
+  -e INFRIX_PLAYGROUND_NODE_ENDPOINT=https://devnet.infrix.io \
+  ghcr.io/opendlt/infrix-playground:latest
+# open http://localhost:8086/
+```
+
+Configure via env (CLI flags still override):
+
+| Env var | Default | Purpose |
+|---|---|---|
+| `INFRIX_PLAYGROUND_ADDR` | `0.0.0.0:8086` (in image) | listen address |
+| `INFRIX_PLAYGROUND_NODE_ENDPOINT` | `http://127.0.0.1:8080` | the Infrix node that runs flows |
+| `INFRIX_PLAYGROUND_KERMIT` | unset | `1` to advertise live Kermit Sandbox (node must offer it; testnet only) |
+| `INFRIX_PLAYGROUND_RECEIPT_DIR` | empty (in-memory) | persist share-linked receipts to disk |
+
+Receipts are in-memory by default, so the container needs no writable volume and
+runs read-only/non-root as shipped. "Bring Your Own Proof" verifies offline even
+with no node configured; "Anonymous Demo" / "Kermit Sandbox" need a reachable node.
+
 ## Modes
 
 | Mode | Backing | Wallet / funding | Assurance | Notes |

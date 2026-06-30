@@ -1,0 +1,8 @@
+# Keep the build context small. web/ and fixtures/ MUST stay (go:embed).
+.git
+.github
+docs
+receipts
+dist
+*.log
+*.exe

@@ -18,17 +18,33 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/opendlt/infrix-playground/api"
 )
 
+// envOr returns env var name's value, or def when unset/empty. It lets a
+// container configure the playground via env (12-factor); CLI flags override.
+func envOr(name, def string) string {
+	if v := strings.TrimSpace(os.Getenv(name)); v != "" {
+		return v
+	}
+	return def
+}
+
+// envBool parses a boolean env var (1/true/yes); unset/unparseable → false.
+func envBool(name string) bool {
+	b, err := strconv.ParseBool(strings.TrimSpace(os.Getenv(name)))
+	return err == nil && b
+}
+
 func main() {
-	addr := flag.String("addr", "127.0.0.1:8086", "address to listen on")
-	nodeEndpoint := flag.String("node-endpoint", "http://127.0.0.1:8080", "base URL of the Infrix node that runs flows (POST /v4/playground/runFlow)")
-	receiptDir := flag.String("receipt-dir", "", "directory to persist shared receipts (empty = in-memory only)")
-	kermit := flag.Bool("kermit", false, "advertise live Kermit Sandbox mode (the configured node must offer it; testnet only)")
+	addr := flag.String("addr", envOr("INFRIX_PLAYGROUND_ADDR", "127.0.0.1:8086"), "address to listen on")
+	nodeEndpoint := flag.String("node-endpoint", envOr("INFRIX_PLAYGROUND_NODE_ENDPOINT", "http://127.0.0.1:8080"), "base URL of the Infrix node that runs flows (POST /v4/playground/runFlow)")
+	receiptDir := flag.String("receipt-dir", envOr("INFRIX_PLAYGROUND_RECEIPT_DIR", ""), "directory to persist shared receipts (empty = in-memory only)")
+	kermit := flag.Bool("kermit", envBool("INFRIX_PLAYGROUND_KERMIT"), "advertise live Kermit Sandbox mode (the configured node must offer it; testnet only)")
 	kermitL0 := flag.String("kermit-l0", "kermit", "Kermit network name used for the mainnet-refusal check; mainnet is refused")
 	rateBurst := flag.Float64("rate-burst", 0, "rate limit burst per client (0 = default)")
 	ratePerMin := flag.Float64("rate-per-min", 0, "rate limit sustained requests per minute per client (0 = default)")
