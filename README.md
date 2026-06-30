@@ -1,5 +1,9 @@
 # Infrix Hosted Playground (adoption-09)
 
+> **▶ Live: https://play.infrix.opendlt.org** — run a real governed flow and
+> verify its proof in your browser, no install. (Backed by the public devnet node
+> at https://devnet.infrix.opendlt.org.)
+
 A no-install, browser-first way to feel Infrix:
 
 1. Open the playground.
