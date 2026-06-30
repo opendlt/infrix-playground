@@ -102,7 +102,7 @@ and publishes `ghcr.io/opendlt/infrix-playground` on `main` and `v*` tags.
 
 ```sh
 docker run --rm -p 8086:8086 \
-  -e INFRIX_PLAYGROUND_NODE_ENDPOINT=https://devnet.infrix.io \
+  -e INFRIX_PLAYGROUND_NODE_ENDPOINT=https://devnet.infrix.opendlt.org \
   ghcr.io/opendlt/infrix-playground:latest
 # open http://localhost:8086/
 ```
