@@ -131,6 +131,24 @@ with no node configured; "Anonymous Demo" / "Kermit Sandbox" need a reachable no
 | **Kermit Sandbox** | live Kermit testnet (node-side) | short-lived test identity, faucet-backed | can reach **L4** | opt-in (`--kermit`); rate-limited |
 | **Bring Your Own Proof** | your uploaded bundle | none, no login | offline cryptographic verdict | verification runs entirely in the browser |
 
+## Agent API — one-call run → prove (DX P4-4)
+
+Agents (not just browsers) get a **single, synchronous** endpoint that runs an
+allowlisted governed flow to completion and returns the portable proof — no
+create → poll → fetch dance:
+
+```
+POST /api/agent/run-flow
+  { "flow": "golden-escrow", "mode": "anonymous" }
+→ 200 { "ok": true, "flow": "...", "mode": "...", "runId": "...",
+        "receiptId": "...", "proof": { ...portable evidence package... },
+        "verifyHint": "verify `proof` offline with @infrix/verify" }
+```
+
+The same abuse guard, mode gating, and rate limiter as `/api/runs` apply — an
+agent cannot run an arbitrary flow. Pass the returned `proof` straight to
+`@infrix/verify` (or `POST /api/verify`) for an independent verdict.
+
 ## Layout
 
 ```

@@ -86,6 +86,7 @@ func (s *Server) routes() {
 	mux.HandleFunc("GET /api/readiness", s.handleReadiness)
 	mux.HandleFunc("GET /api/sample-bundle", s.handleSampleBundle)
 	mux.HandleFunc("POST /api/runs", s.handleCreateRun)
+	mux.HandleFunc("POST /api/agent/run-flow", s.handleAgentRunFlow)
 	mux.HandleFunc("GET /api/runs/{id}", s.handleGetRun)
 	mux.HandleFunc("GET /api/runs/{id}/events", s.handleRunEvents)
 	mux.HandleFunc("GET /api/receipts/{id}", s.handleGetReceipt)
