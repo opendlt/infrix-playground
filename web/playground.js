@@ -916,12 +916,25 @@ function initTheme() {
 }
 
 // ---- boot ----
+// updateFooterClaim keeps the footer's headline claim honest: it only asserts
+// live Kermit anchors when this instance actually has Kermit enabled. When the
+// instance is fixture-backed (the default), it says so and does not claim
+// live-L0 / L4 (DX P0-5a — the claim tracks /api/config.kermitEnabled).
+function updateFooterClaim() {
+  const claim = document.getElementById('pg-footer-claim');
+  if (!claim) return;
+  claim.textContent = config.kermitEnabled
+    ? 'Runs on the live Accumulate Kermit testnet — real anchors (reaches L4), no install, no wallet, no real funds.'
+    : 'Runs a governed flow you verify yourself — no install, no wallet, no real funds. (Fixture-backed on this instance; caps at L3 — no live-L0 claim.)';
+}
+
 async function boot() {
   initTheme();
   try {
     config = await api('/api/config');
     if (!config.kermitEnabled && selectedMode === 'kermit') selectedMode = 'anonymous';
   } catch { /* defaults stand */ }
+  updateFooterClaim();
   telemetry.emit('page.loaded');
   window.addEventListener('hashchange', route);
   route();

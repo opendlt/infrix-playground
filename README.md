@@ -1,8 +1,11 @@
 # Infrix Hosted Playground (adoption-09)
 
-> **▶ Live: https://play.infrix.opendlt.org** — run a real governed flow and
-> verify its proof in your browser, no install. (Backed by the public devnet node
-> at https://devnet.infrix.opendlt.org.)
+> **▶ Live: https://play.infrix.opendlt.org** — run a governed flow and
+> re-verify its proof in your browser, no install. The default (anonymous)
+> experience is **fixture-backed and caps at L3** (deterministic, no live-L0
+> claim); when the **Kermit sandbox** is enabled on the instance, runs go live
+> against the testnet and can reach L4. The footer and the Status page report
+> which mode this instance is in.
 
 A no-install, browser-first way to feel Infrix:
 
