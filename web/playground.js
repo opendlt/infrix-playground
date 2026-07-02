@@ -20,6 +20,63 @@ const modeBadge = document.getElementById('pg-mode-badge');
 
 let config = { kermitEnabled: false, allowedFlows: ['golden-escrow'], modes: ['anonymous'] };
 let selectedMode = 'anonymous';
+let selectedFlow = 'golden-escrow';
+
+// FLOWS is the client-side registry of the allowlisted builder flows (DX P3-3).
+// Each entry drives the flow picker, the run-theater copy, and — critically —
+// the "reproduce this yourself" panel on the receipt: the exact `infrix` CLI
+// line and TS SDK snippet that produce the SAME proof locally. The node enforces
+// the real allowlist; this is presentation + reproduction only.
+const FLOWS = Object.freeze({
+  'golden-escrow': {
+    label: 'Escrow release',
+    cta: 'Run the escrow →',
+    eyebrow: 'GOVERNED ESCROW',
+    tagline: 'A governed escrow, hash-linked stage by stage — no wallet, no funding.',
+    blurb: 'An escrow release governed by a policy, a role approval, and a delivery credential — ending in a proof you verify yourself.',
+    cli: 'infrix demo start --mode local',
+    sdk: `import { InfrixClient } from '@infrix/client';
+
+const infrix = new InfrixClient('kermit', { actor: 'acc://you.acme', purpose: 'demo' });
+const { proof } = await infrix.flows.run('golden-escrow');
+// verify offline — no node trusted:
+import { verifyPortablePackage } from '@infrix/verify';
+console.log((await verifyPortablePackage(proof)).passed);`,
+  },
+  'create-did': {
+    label: 'Create a DID',
+    cta: 'Create a DID →',
+    eyebrow: 'IDENTITY · DID',
+    tagline: 'A did:infrix created through the governed spine — proof you verify yourself.',
+    blurb: 'Create a did:infrix decentralized identifier through a governed flow — intent, policy, outcome — ending in a proof you verify yourself.',
+    cli: 'infrix did create --adi acc://alice.acme',
+    sdk: `import { InfrixClient } from '@infrix/client';
+
+const infrix = new InfrixClient('kermit', { actor: 'acc://alice.acme', purpose: 'identity' });
+const did = await infrix.credentials.createDID('acc://alice.acme');
+console.log(did); // did:infrix:acc://alice.acme`,
+  },
+  'issue-credential': {
+    label: 'Issue a credential',
+    cta: 'Issue a credential →',
+    eyebrow: 'IDENTITY · CREDENTIAL',
+    tagline: 'A verifiable credential issued through the governed spine — proof you verify yourself.',
+    blurb: 'Issue a verifiable credential to a subject DID through a governed flow — issuer approval, policy, outcome — ending in a proof you verify yourself.',
+    cli: 'infrix credential issue --subject did:infrix:acc://alice.acme --type KYCCredential',
+    sdk: `import { InfrixClient } from '@infrix/client';
+
+const infrix = new InfrixClient('kermit', { actor: 'acc://issuer.acme', purpose: 'issuance' });
+const vc = await infrix.credentials.issue({
+  subjectDid: 'did:infrix:acc://alice.acme',
+  credentialType: 'KYCCredential',
+  claims: { tier: '2' },
+});`,
+  },
+});
+
+function flowMeta(id) {
+  return FLOWS[id] || FLOWS['golden-escrow'];
+}
 
 // ---- onboarding analytics (adoption-12): OPT-IN, privacy-preserving ----
 // Disabled by default (hosted products require opt-in). When opted in, only
@@ -137,9 +194,9 @@ function renderHome() {
 
   // One primary CTA + quiet side-doors.
   const cta = el('div', 'pg-home-cta');
-  const run = el('button', 'pg-btn pg-btn-primary pg-cta', 'Run the escrow →');
+  const run = el('button', 'pg-btn pg-btn-primary pg-cta', flowMeta(selectedFlow).cta);
   run.type = 'button';
-  run.addEventListener('click', () => startRun(selectedMode));
+  run.addEventListener('click', () => startRun(selectedMode, selectedFlow));
   cta.appendChild(run);
   const verifyLink = el('a', 'pg-home-door', 'Already have a proof? Verify it →');
   verifyLink.href = '#/verify';
@@ -148,6 +205,16 @@ function renderHome() {
   labLink.href = '#/lab';
   cta.appendChild(labLink);
   hero.appendChild(cta);
+
+  // Compact inline flow selector (DX P3-3): a visitor can build a DID or issue a
+  // credential, not just run the escrow — each ends in a verifiable proof.
+  const flows = el('div', 'pg-home-modes');
+  flows.appendChild(el('span', 'pg-home-modes-label', 'Flow'));
+  for (const id of allowedFlowIds()) {
+    flows.appendChild(flowButton(id, flowMeta(id).label));
+  }
+  hero.appendChild(flows);
+  hero.appendChild(el('div', 'pg-mode-note', flowMeta(selectedFlow).blurb));
 
   // Compact inline mode selector right by the CTA.
   const modes = el('div', 'pg-home-modes');
@@ -230,6 +297,70 @@ function modeButton(mode, label, enabled) {
   return b;
 }
 
+// allowedFlowIds returns the flows this instance exposes, in registry order,
+// intersected with the server's advertised allowlist so the picker never offers
+// a flow the node would reject.
+function allowedFlowIds() {
+  const advertised = Array.isArray(config.allowedFlows) && config.allowedFlows.length
+    ? config.allowedFlows : ['golden-escrow'];
+  const ids = Object.keys(FLOWS).filter((id) => advertised.includes(id));
+  return ids.length ? ids : ['golden-escrow'];
+}
+
+function flowButton(id, label) {
+  const b = el('button', 'pg-mode-btn', label);
+  b.type = 'button';
+  b.setAttribute('aria-pressed', String(selectedFlow === id));
+  b.addEventListener('click', () => {
+    selectedFlow = id;
+    renderHome();
+  });
+  return b;
+}
+
+// reproducePanel renders the "reproduce this yourself" block for a flow: the
+// exact `infrix` CLI line and the TS SDK snippet that produce the same proof,
+// each with a copy button. This kills the repo-hunt after a convincing run.
+function reproducePanel(flow) {
+  const meta = flowMeta(flow || 'golden-escrow');
+  const wrap = el('section', 'pg-reproduce');
+  wrap.appendChild(el('h2', null, 'Reproduce this yourself'));
+  wrap.appendChild(el('p', 'pg-note',
+    'Produce the same proof locally — then verify it offline with the same published verifier this page used.'));
+
+  const cliBlock = copyableCode('CLI', meta.cli);
+  const sdkBlock = copyableCode('TypeScript SDK', meta.sdk);
+  wrap.appendChild(cliBlock);
+  wrap.appendChild(sdkBlock);
+  return wrap;
+}
+
+// copyableCode renders a labeled <pre> with a copy button.
+function copyableCode(label, code) {
+  const block = el('div', 'pg-code-block');
+  const bar = el('div', 'pg-code-bar');
+  bar.appendChild(el('span', 'pg-code-label', label));
+  const copy = el('button', 'pg-btn pg-btn-sm', 'Copy');
+  copy.type = 'button';
+  copy.addEventListener('click', async () => {
+    let copied = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(code);
+        copied = true;
+      }
+    } catch { /* ignore */ }
+    copy.textContent = copied ? 'Copied ✓' : 'Copy';
+    setTimeout(() => { copy.textContent = 'Copy'; }, 1400);
+  });
+  bar.appendChild(copy);
+  block.appendChild(bar);
+  const pre = el('pre', 'pg-code');
+  pre.appendChild(el('code', null, code));
+  block.appendChild(pre);
+  return block;
+}
+
 // ---- run (the Run Theater) ----
 // The governed flow assembles left-to-right as a Spine: each stage lights in its
 // gradient colour and emits its REAL artifact hash (hash-linked to the previous
@@ -257,9 +388,11 @@ function makeChannel() {
   };
 }
 
-async function startRun(mode) {
+async function startRun(mode, flow) {
   setNav('home');
   app.replaceChildren();
+  flow = flow || selectedFlow || 'golden-escrow';
+  const meta = flowMeta(flow);
 
   const head = el('section', 'pg-hero');
   head.appendChild(el('p', 'pg-eyebrow', mode === 'kermit'
@@ -267,7 +400,7 @@ async function startRun(mode) {
   head.appendChild(el('h1', null, 'Building a tamper-evident proof'));
   head.appendChild(el('p', null, mode === 'kermit'
     ? 'Live against the Kermit testnet — each stage hash-linked to the last.'
-    : 'A governed escrow, hash-linked stage by stage — no wallet, no funding.'));
+    : meta.tagline));
   app.appendChild(head);
 
   const panel = el('div', 'pg-panel');
@@ -282,7 +415,7 @@ async function startRun(mode) {
     started = await api('/api/runs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode, flow: 'golden-escrow' }),
+      body: JSON.stringify({ mode, flow }),
     });
   } catch (e) {
     showError(app, e);
@@ -328,7 +461,7 @@ async function startRun(mode) {
     box.appendChild(el('div', 'pg-note', msg || 'Something interrupted the run.'));
     const retry = el('button', 'pg-btn pg-btn-primary', 'Try again');
     retry.type = 'button';
-    retry.addEventListener('click', () => startRun(mode));
+    retry.addEventListener('click', () => startRun(mode, flow));
     box.appendChild(retry);
     card.replaceChildren(box);
   };
@@ -462,6 +595,10 @@ async function renderReceipt(id) {
     copyBtn.textContent = copied ? 'Copied ✓' : url;
     setTimeout(() => { copyBtn.textContent = 'Copy share link'; }, 1600);
   });
+
+  // Reproduce-this-yourself panel (DX P3-3): the exact CLI line and TS SDK
+  // snippet that produce the SAME proof locally — no repo-hunt, no dead end.
+  app.appendChild(reproducePanel(data.flow));
 
   // Disclosure: the full proof (receipt card + Cinema replay), demoted below the
   // verdict so it never competes with the trust answer.

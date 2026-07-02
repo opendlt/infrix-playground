@@ -285,7 +285,7 @@ func (s *Server) handleCreateRun(w http.ResponseWriter, r *http.Request) {
 	// the request context, which is canceled the moment this handler returns —
 	// the run-flow call to the node would be aborted. Detach to a background
 	// context.
-	run := s.runs.Start(context.Background(), mode)
+	run := s.runs.Start(context.Background(), mode, req.Flow)
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"id":    run.ID,
 		"mode":  mode,
@@ -346,6 +346,7 @@ func (s *Server) handleGetReceipt(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id":         run.ID,
 		"mode":       run.Mode,
+		"flow":       run.Flow,
 		"network":    run.Network,
 		"proofLabel": run.ProofLabel,
 		"receipt":    run.Receipt,

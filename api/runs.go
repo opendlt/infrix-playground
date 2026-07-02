@@ -56,6 +56,7 @@ type Event struct {
 type Run struct {
 	ID   string
 	Mode worker.Mode
+	Flow string
 
 	mu        sync.Mutex
 	state     RunState
@@ -209,9 +210,12 @@ func (rm *RunManager) Get(id string) (*Run, bool) {
 
 // Start creates a run and launches its execution in the background. It returns
 // immediately with the created run so the caller can stream progress.
-func (rm *RunManager) Start(ctx context.Context, mode worker.Mode) *Run {
+func (rm *RunManager) Start(ctx context.Context, mode worker.Mode, flow string) *Run {
 	id := fmt.Sprintf("run-%d", atomic.AddInt64(&rm.counter, 1))
-	r := &Run{ID: id, Mode: mode, state: StateCreated}
+	if flow == "" {
+		flow = worker.FlowGoldenEscrow
+	}
+	r := &Run{ID: id, Mode: mode, Flow: flow, state: StateCreated}
 
 	rm.mu.Lock()
 	rm.runs[id] = r
@@ -220,13 +224,13 @@ func (rm *RunManager) Start(ctx context.Context, mode worker.Mode) *Run {
 	rm.metrics.Inc(MetricRunsStarted)
 	r.transition(StateRunning)
 
-	go rm.execute(ctx, r, mode)
+	go rm.execute(ctx, r, mode, flow)
 	return r
 }
 
 // execute runs the worker, streams steps, and stores the result.
-func (rm *RunManager) execute(ctx context.Context, r *Run, mode worker.Mode) {
-	result, err := rm.runner.Run(ctx, mode, func(s worker.Step) { r.addStep(s) })
+func (rm *RunManager) execute(ctx context.Context, r *Run, mode worker.Mode, flow string) {
+	result, err := rm.runner.Run(ctx, mode, flow, func(s worker.Step) { r.addStep(s) })
 	if err != nil {
 		rm.metrics.Inc(MetricRunsFailed)
 		r.finishErr(err.Error())
@@ -236,6 +240,7 @@ func (rm *RunManager) execute(ctx context.Context, r *Run, mode worker.Mode) {
 	receiptJSON, _ := result.Receipt.MarshalJSONIndent()
 	id, serr := rm.store.Put(&StoredRun{
 		Mode:       string(result.Mode),
+		Flow:       flow,
 		Network:    result.NetworkLabel,
 		ProofLabel: result.ProofLabel,
 		Receipt:    result.Receipt,

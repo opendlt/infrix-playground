@@ -49,10 +49,20 @@ const (
 	ModeKermit Mode = "kermit"
 )
 
-// FlowGoldenEscrow is the one flow the anonymous playground exposes. The
-// allowlist (see api.AbuseGuard) rejects anything else, so the anonymous
-// surface can never run arbitrary contracts.
-const FlowGoldenEscrow = "golden-escrow"
+// The allowlisted playground flows (DX P3-3). Each is a FIXED, parameter-free
+// governed flow the node runs to completion, returning a portable proof the
+// client re-verifies offline. The allowlist (see api.AbuseGuard) rejects
+// anything else, so the anonymous surface can never run an arbitrary contract.
+const (
+	FlowGoldenEscrow    = "golden-escrow"    // escrow release with regulated approval + delivery credential
+	FlowCreateDID       = "create-did"       // create a did:infrix
+	FlowIssueCredential = "issue-credential" // issue a verifiable credential
+)
+
+// PlaygroundFlows is the canonical flow allowlist, in display order.
+func PlaygroundFlows() []string {
+	return []string{FlowGoldenEscrow, FlowCreateDID, FlowIssueCredential}
+}
 
 // StepStatus is the lifecycle of a single progress step.
 type StepStatus string
@@ -167,11 +177,14 @@ type runFlowResponse struct {
 // run-flow endpoint, then re-verifying the returned package offline. Progress
 // steps are emitted through emit (which may be nil). On error the run is
 // reported failed and no receipt is produced.
-func (r *Runner) Run(ctx context.Context, mode Mode, emit func(Step)) (*RunResult, error) {
+func (r *Runner) Run(ctx context.Context, mode Mode, flow string, emit func(Step)) (*RunResult, error) {
 	send := func(s Step) {
 		if emit != nil {
 			emit(s)
 		}
+	}
+	if strings.TrimSpace(flow) == "" {
+		flow = FlowGoldenEscrow
 	}
 
 	switch mode {
@@ -185,7 +198,7 @@ func (r *Runner) Run(ctx context.Context, mode Mode, emit func(Step)) (*RunResul
 		return nil, fmt.Errorf("unknown run mode %q", mode)
 	}
 
-	resp, err := r.callRunFlow(ctx, mode)
+	resp, err := r.callRunFlow(ctx, mode, flow)
 	if err != nil {
 		send(Step{Key: "run", Label: "Run failed", Status: StepFailed})
 		return nil, err
@@ -316,11 +329,14 @@ func stepHashes(pkg *schemaev.PortableEvidencePackage) map[string]string {
 
 // callRunFlow POSTs the run request to the node's run-flow endpoint and decodes
 // the response. The node's error message (if any) is surfaced.
-func (r *Runner) callRunFlow(ctx context.Context, mode Mode) (*runFlowResponse, error) {
+func (r *Runner) callRunFlow(ctx context.Context, mode Mode, flow string) (*runFlowResponse, error) {
 	if strings.TrimSpace(r.Endpoint) == "" {
 		return nil, fmt.Errorf("playground: no run-flow endpoint configured")
 	}
-	reqBody, err := json.Marshal(runFlowRequest{Mode: string(mode), Flow: FlowGoldenEscrow})
+	if strings.TrimSpace(flow) == "" {
+		flow = FlowGoldenEscrow
+	}
+	reqBody, err := json.Marshal(runFlowRequest{Mode: string(mode), Flow: flow})
 	if err != nil {
 		return nil, fmt.Errorf("playground: encode run-flow request: %w", err)
 	}

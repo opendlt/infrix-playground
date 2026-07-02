@@ -85,7 +85,7 @@ func (s *Server) handleAgentRunFlow(w http.ResponseWriter, r *http.Request) {
 
 	// The run outlives this request; detach it from the request context (which is
 	// canceled on return) so the node call is not aborted.
-	run := s.runs.Start(context.Background(), mode)
+	run := s.runs.Start(context.Background(), mode, req.Flow)
 
 	deadline := time.Now().Add(90 * time.Second)
 	for {

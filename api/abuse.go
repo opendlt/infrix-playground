@@ -31,11 +31,17 @@ type AbuseGuard struct {
 // a memory-exhaustion upload.
 const DefaultMaxUploadBytes = 2 << 20
 
-// NewAbuseGuard builds the guard with the only flow the anonymous playground
-// exposes (golden-escrow).
+// NewAbuseGuard builds the guard with the fixed allowlist of governed flows the
+// anonymous playground exposes (DX P3-3): golden-escrow, create-did, and
+// issue-credential. Each is a parameter-free flow the node runs to completion;
+// anything else is rejected.
 func NewAbuseGuard() *AbuseGuard {
+	allowed := map[string]bool{}
+	for _, f := range worker.PlaygroundFlows() {
+		allowed[f] = true
+	}
 	return &AbuseGuard{
-		allowedFlows:  map[string]bool{worker.FlowGoldenEscrow: true},
+		allowedFlows:  allowed,
 		maxUploadByte: DefaultMaxUploadBytes,
 	}
 }
@@ -63,7 +69,7 @@ func (g *AbuseGuard) CheckFlow(flow string) error {
 	if g.AllowedFlow(flow) {
 		return nil
 	}
-	return fmt.Errorf("flow %q is not on the playground allowlist; only %s is available in anonymous mode", flow, worker.FlowGoldenEscrow)
+	return fmt.Errorf("flow %q is not on the playground allowlist; available flows: %s", flow, strings.Join(worker.PlaygroundFlows(), ", "))
 }
 
 // LooksLikePath reports whether s resembles a filesystem path or traversal

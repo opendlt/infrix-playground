@@ -26,13 +26,14 @@ import (
 // proof receipt and the portable bundle. No private keys, no wallet data, no
 // session identifiers are ever stored.
 type StoredRun struct {
-	ID          string               `json:"id"`
-	Mode        string               `json:"mode"`
-	Network     string               `json:"network"`
-	ProofLabel  string               `json:"proofLabel"`
-	CreatedAt   time.Time            `json:"createdAt"`
-	Receipt     *schemapr.Receipt `json:"receipt"`
-	BundleJSON  json.RawMessage   `json:"bundle"`
+	ID         string            `json:"id"`
+	Mode       string            `json:"mode"`
+	Flow       string            `json:"flow"`
+	Network    string            `json:"network"`
+	ProofLabel string            `json:"proofLabel"`
+	CreatedAt  time.Time         `json:"createdAt"`
+	Receipt    *schemapr.Receipt `json:"receipt"`
+	BundleJSON json.RawMessage   `json:"bundle"`
 }
 
 // ReceiptStore persists completed runs in memory and, when a directory is

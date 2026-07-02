@@ -37,6 +37,29 @@ func TestAgentRunFlowReturnsProofInOneCall(t *testing.T) {
 	}
 }
 
+// TestAgentRunFlowAcceptsBuilderFlows is the DX P3-3 guarantee at the API edge:
+// the create-did and issue-credential builder flows are allowlisted and run to a
+// portable proof, not just golden-escrow.
+func TestAgentRunFlowAcceptsBuilderFlows(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.RunFlowEndpoint = newRunFlowNode(t)
+	cfg.RateLimit = RateLimitConfig{Burst: 50, PerMinute: 600}
+	ts := newTestServer(t, cfg)
+
+	for _, flow := range []string{"create-did", "issue-credential"} {
+		code, body := postJSON(t, ts.URL+"/api/agent/run-flow", map[string]string{"mode": "anonymous", "flow": flow})
+		if code != http.StatusOK {
+			t.Fatalf("agent run-flow %q = %d, body=%v", flow, code, body)
+		}
+		if body["ok"] != true {
+			t.Errorf("%q: ok != true: %v", flow, body["ok"])
+		}
+		if proof, ok := body["proof"].(map[string]any); !ok || len(proof) == 0 {
+			t.Errorf("%q: no portable proof to verify: %v", flow, body["proof"])
+		}
+	}
+}
+
 // TestAgentRunFlowRejectsArbitraryFlow proves the abuse guard applies to the
 // agent endpoint too — no arbitrary contract execution.
 func TestAgentRunFlowRejectsArbitraryFlow(t *testing.T) {

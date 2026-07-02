@@ -270,3 +270,14 @@ body {
   .pg-spine-node[data-state="running"] .pg-spine-dot { animation: none; }
   .pg-matrix-row { transition: none; opacity: 1; transform: none; }
 }
+
+/* Reproduce-this-yourself panel (DX P3-3): the CLI line + SDK snippet that
+   produce the same proof locally, each copy-able. */
+.pg-reproduce { margin: 24px 0; padding: 18px 20px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.pg-reproduce h2 { margin: 0 0 6px; font-size: 1.05rem; }
+.pg-code-block { margin-top: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.pg-code-bar { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: var(--bg); border-bottom: 1px solid var(--border); }
+.pg-code-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); }
+.pg-btn-sm { padding: 4px 10px; font-size: 0.78rem; }
+.pg-code { margin: 0; padding: 12px; overflow-x: auto; font-size: 0.82rem; line-height: 1.5; background: transparent; }
+.pg-code code { white-space: pre; }

@@ -49,7 +49,7 @@ func TestThinClientRunProducesVerifiedL3Receipt(t *testing.T) {
 	}
 
 	var steps []Step
-	res, err := r.Run(context.Background(), ModeAnonymous, func(s Step) { steps = append(steps, s) })
+	res, err := r.Run(context.Background(), ModeAnonymous, FlowGoldenEscrow, func(s Step) { steps = append(steps, s) })
 	if err != nil {
 		t.Fatalf("anonymous run: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestRunStepsCarryRealChainHashes(t *testing.T) {
 	r.HTTPClient = ts.Client()
 
 	var steps []Step
-	if _, err := r.Run(context.Background(), ModeAnonymous, func(s Step) { steps = append(steps, s) }); err != nil {
+	if _, err := r.Run(context.Background(), ModeAnonymous, FlowGoldenEscrow, func(s Step) { steps = append(steps, s) }); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
@@ -140,7 +140,7 @@ func TestRunStepsCarryRealChainHashes(t *testing.T) {
 // any node call — not a crash or a fake result.
 func TestKermitDisabledFailsClosed(t *testing.T) {
 	r := New("http://127.0.0.1:0", false)
-	_, err := r.Run(context.Background(), ModeKermit, nil)
+	_, err := r.Run(context.Background(), ModeKermit, FlowGoldenEscrow, nil)
 	if err == nil {
 		t.Fatal("Kermit run with no availability must fail")
 	}
@@ -151,7 +151,7 @@ func TestKermitDisabledFailsClosed(t *testing.T) {
 
 func TestUnknownModeRejected(t *testing.T) {
 	r := New("http://127.0.0.1:0", false)
-	if _, err := r.Run(context.Background(), Mode("bogus"), nil); err == nil {
+	if _, err := r.Run(context.Background(), Mode("bogus"), FlowGoldenEscrow, nil); err == nil {
 		t.Fatal("unknown mode must be rejected")
 	}
 }
