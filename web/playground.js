@@ -35,12 +35,16 @@ const FLOWS = Object.freeze({
     tagline: 'A governed escrow, hash-linked stage by stage — no wallet, no funding.',
     blurb: 'An escrow release governed by a policy, a role approval, and a delivery credential — ending in a proof you verify yourself.',
     cli: 'infrix demo start --mode local',
-    sdk: `import { InfrixClient } from '@infrix/client';
-
-const infrix = new InfrixClient('kermit', { actor: 'acc://you.acme', purpose: 'demo' });
-const { proof } = await infrix.flows.run('golden-escrow');
-// verify offline — no node trusted:
+    sdk: `import { InfrixClient, withGoldenApp } from '@infrix/client';
 import { verifyPortablePackage } from '@infrix/verify';
+
+const app = withGoldenApp(new InfrixClient('kermit', { actor: 'acc://you.acme', purpose: 'demo' }));
+const { escrowId, intentId } = await app.escrow.create({
+  buyer: 'acc://buyer.acme', seller: 'acc://seller.acme', amount: 1000,
+});
+await app.escrow.release({ escrowId });
+const proof = await app.proofs.export({ intentId });
+// verify offline — no node trusted:
 console.log((await verifyPortablePackage(proof)).passed);`,
   },
   'create-did': {
@@ -53,7 +57,7 @@ console.log((await verifyPortablePackage(proof)).passed);`,
     sdk: `import { InfrixClient } from '@infrix/client';
 
 const infrix = new InfrixClient('kermit', { actor: 'acc://alice.acme', purpose: 'identity' });
-const did = await infrix.credentials.createDID('acc://alice.acme');
+const did = infrix.credentials.createDID('acc://alice.acme'); // offline, no node
 console.log(did); // did:infrix:acc://alice.acme`,
   },
   'issue-credential': {
@@ -67,8 +71,8 @@ console.log(did); // did:infrix:acc://alice.acme`,
 
 const infrix = new InfrixClient('kermit', { actor: 'acc://issuer.acme', purpose: 'issuance' });
 const vc = await infrix.credentials.issue({
-  subjectDid: 'did:infrix:acc://alice.acme',
-  credentialType: 'KYCCredential',
+  subjectDID: 'did:infrix:acc://alice.acme',
+  credentialTypes: ['KYCCredential'],
   claims: { tier: '2' },
 });`,
   },
