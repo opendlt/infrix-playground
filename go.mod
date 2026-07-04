@@ -10,7 +10,7 @@ module github.com/opendlt/infrix-playground
 go 1.25.7
 
 require (
-	github.com/opendlt/infrix-nexus-web v0.1.0
-	github.com/opendlt/infrix-schema v0.2.0
+	github.com/opendlt/infrix-nexus-web v0.2.0
+	github.com/opendlt/infrix-schema v0.3.0
 	github.com/opendlt/infrix-verify v0.2.0
 )
