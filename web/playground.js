@@ -57,8 +57,8 @@ console.log((await verifyPortablePackage(proof)).passed);`,
     sdk: `import { InfrixClient } from '@infrix/client';
 
 const infrix = new InfrixClient('kermit', { actor: 'acc://alice.acme', purpose: 'identity' });
-const did = infrix.credentials.createDID('acc://alice.acme'); // offline, no node
-console.log(did); // did:infrix:acc://alice.acme`,
+const did = infrix.credentials.createDID('acc://alice.acme', { networkId: 'g1-e3f3119213a1ead44647659d67e47f4269a2affb13f150aa87b20baacf93cf81' }); // offline, no node
+console.log(did); // did:infrix:v1:acc:g1-e3f3119213a1ead44647659d67e47f4269a2affb13f150aa87b20baacf93cf81:alice.acme`,
   },
   'issue-credential': {
     label: 'Issue a credential',
@@ -66,12 +66,12 @@ console.log(did); // did:infrix:acc://alice.acme`,
     eyebrow: 'IDENTITY · CREDENTIAL',
     tagline: 'A verifiable credential issued through the governed spine — proof you verify yourself.',
     blurb: 'Issue a verifiable credential to a subject DID through a governed flow — issuer approval, policy, outcome — ending in a proof you verify yourself.',
-    cli: 'infrix credential issue --subject did:infrix:acc://alice.acme --type KYCCredential',
+    cli: 'infrix credential issue --subject did:infrix:v1:acc:g1-e3f3119213a1ead44647659d67e47f4269a2affb13f150aa87b20baacf93cf81:alice.acme --type KYCCredential',
     sdk: `import { InfrixClient } from '@infrix/client';
 
 const infrix = new InfrixClient('kermit', { actor: 'acc://issuer.acme', purpose: 'issuance' });
 const vc = await infrix.credentials.issue({
-  subjectDID: 'did:infrix:acc://alice.acme',
+  subjectDID: 'did:infrix:v1:acc:g1-e3f3119213a1ead44647659d67e47f4269a2affb13f150aa87b20baacf93cf81:alice.acme',
   credentialTypes: ['KYCCredential'],
   claims: { tier: '2' },
 });`,
