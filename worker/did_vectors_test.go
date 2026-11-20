@@ -30,7 +30,7 @@ import (
 // canonical v1 grammar), never the retired acc:// spelling the node refuses (the playground used to show
 // did:infrix:acc://alice.acme in three places).
 
-const pinnedDIDVectorsSHA256 = "79b2ffe2e63ecfbe3b7f7fd531bfca1d9ecc67fb410a0f0638c014bf93a065f3"
+const pinnedDIDVectorsSHA256 = "b1551ad989abaad6498f9abe37238df01418dbff5e50d61c01ceff1476b603ee"
 
 type didVectorSet struct {
 	Spec      string `json:"spec"`
