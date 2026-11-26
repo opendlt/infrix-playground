@@ -91,6 +91,7 @@ func (s *Server) routes() {
 	mux.HandleFunc("GET /api/runs/{id}/events", s.handleRunEvents)
 	mux.HandleFunc("GET /api/receipts/{id}", s.handleGetReceipt)
 	mux.HandleFunc("GET /api/receipts/{id}/bundle", s.handleGetBundle)
+	mux.HandleFunc("GET /api/receipts/{id}/pin", s.handleGetPin)
 	mux.HandleFunc("POST /api/verify", s.handleVerify)
 
 	// Onboarding analytics (adoption-12).
@@ -362,6 +363,19 @@ func (s *Server) handleGetBundle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", run.ID+".infrix.json"))
 	_, _ = w.Write(run.BundleJSON)
+}
+
+// handleGetPin serves the local run's pin beside its bundle (pin.local-embedded.json): the trust root a relying party passes explicitly to
+// re-verify the bundle's embedded proofs (L4/G2 local-embedded). A run with no pin answers 404, never an empty trust root.
+func (s *Server) handleGetPin(w http.ResponseWriter, r *http.Request) {
+	run, ok := s.store.Get(r.PathValue("id"))
+	if !ok || len(run.PinJSON) == 0 {
+		writeJSONError(w, http.StatusNotFound, "no local run pin for this run")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="pin.local-embedded.json"`)
+	_, _ = w.Write(run.PinJSON)
 }
 
 // handleVerify is the server-side cross-check: it runs the SAME pkg/verifykit
