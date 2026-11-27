@@ -117,6 +117,9 @@ type RunResult struct {
 	Receipt      *schemapr.Receipt
 	Package      *schemaev.PortableEvidencePackage
 	BundleJSON   []byte
+	// PinJSON is the local run's pin the package was verified under (pin.local-embedded.json), kept BESIDE the bundle so a relying party
+	// re-verifies it with the pin passed explicitly (`infrix verify --l0-pin`); nil when no pin was passed.
+	PinJSON []byte
 }
 
 // Runner executes playground runs against a node's /v4/playground/runFlow
@@ -171,6 +174,11 @@ type runFlowResponse struct {
 	BundleID     string                            `json:"bundleId"`
 	AnchorTx     string                            `json:"anchorTx"`
 	Package      *schemaev.PortableEvidencePackage `json:"package"`
+	// Pin is the node's local run pin, sent BESIDE the package and never inside it (infrix-core brief 28bs row 2). The anonymous flows run on
+	// the node's in-process Accumulate network, so the client verifies the package's embedded proofs (L4/G2 local-embedded) only by passing
+	// this pin to its verifier explicitly, through the verifier's one pin parser. It is nil for a kermit run, whose trust root is the
+	// verifier's compiled Kermit pin.
+	Pin json.RawMessage `json:"pin,omitempty"`
 }
 
 // Run executes a governed flow in the requested mode by calling the node's
@@ -226,6 +234,19 @@ func (r *Runner) Run(ctx context.Context, mode Mode, flow string, emit func(Step
 	if mode == ModeKermit {
 		opts.L0Confirmer = r.L0Confirmer
 	}
+	// The local run's pin, passed to the verifier EXPLICITLY (never read from the package): the verifier's one parser refuses a malformed
+	// pin, a pin for another network, and a pin with no governance page. A level it credits under this pin is local-embedded: relative to
+	// the node run's own in-process network, never Kermit, never mainnet.
+	pinned := false
+	if mode == ModeAnonymous && len(resp.Pin) > 0 {
+		pin, perr := verifykit.ParseLocalEmbeddedPin(resp.Pin)
+		if perr != nil {
+			send(Step{Key: "verify", Label: "Verification failed", Status: StepFailed})
+			return nil, fmt.Errorf("playground: the node's local run pin: %w", perr)
+		}
+		pin.Apply(&opts)
+		pinned = true
+	}
 	rep := verifykit.Verify(ctx, resp.Package, opts)
 
 	bundleJSON, err := json.MarshalIndent(resp.Package, "", "  ")
@@ -234,8 +255,12 @@ func (r *Runner) Run(ctx context.Context, mode Mode, flow string, emit func(Step
 	}
 
 	verifyCmd := "infrix verify <bundle>.infrix.json"
+	network := resp.NetworkLabel
 	if mode == ModeKermit {
 		verifyCmd = "infrix verify <bundle>.infrix.json --l0 " + resp.NetworkLabel
+	} else if pinned {
+		verifyCmd = "infrix verify <bundle>.infrix.json --l0-pin <run>/pin.local-embedded.json"
+		network = verifykit.LocalEmbeddedNetwork
 	}
 	receipt := verifypr.FromVerifyReport(rep, verifypr.VerifyConvertOptions{
 		SubjectType: schemapr.SubjectEvidence,
@@ -246,7 +271,7 @@ func (r *Runner) Run(ctx context.Context, mode Mode, flow string, emit func(Step
 		AnchorTx:    resp.AnchorTx,
 		Verifier:    "infrix verify",
 		Command:     verifyCmd,
-		Network:     resp.NetworkLabel,
+		Network:     network,
 		VerifiedAt:  time.Now().UTC().Format(time.RFC3339),
 	})
 
@@ -257,6 +282,7 @@ func (r *Runner) Run(ctx context.Context, mode Mode, flow string, emit func(Step
 		Receipt:      receipt,
 		Package:      resp.Package,
 		BundleJSON:   bundleJSON,
+		PinJSON:      pinJSON(pinned, resp.Pin),
 	}, nil
 }
 
@@ -375,4 +401,12 @@ func (r *Runner) callRunFlow(ctx context.Context, mode Mode, flow string) (*runF
 		return nil, fmt.Errorf("playground: decode run-flow response: %w", err)
 	}
 	return &resp, nil
+}
+
+// pinJSON is the pin a run was verified under, or nil when none was passed.
+func pinJSON(pinned bool, raw json.RawMessage) []byte {
+	if !pinned {
+		return nil
+	}
+	return append([]byte(nil), raw...)
 }

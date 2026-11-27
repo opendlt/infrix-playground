@@ -34,6 +34,9 @@ type StoredRun struct {
 	CreatedAt  time.Time         `json:"createdAt"`
 	Receipt    *schemapr.Receipt `json:"receipt"`
 	BundleJSON json.RawMessage   `json:"bundle"`
+	// PinJSON is the local run's pin the bundle was verified under (public: it hashes the run network's validator keys), served beside the
+	// bundle at /api/receipts/{id}/pin so a relying party passes it explicitly; empty when the run had none.
+	PinJSON json.RawMessage `json:"pin,omitempty"`
 }
 
 // ReceiptStore persists completed runs in memory and, when a directory is

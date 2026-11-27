@@ -25,3 +25,15 @@ var SampleProof []byte
 //
 //go:embed sample-proof.manifest.json
 var SampleProofManifest []byte
+
+// LocalEmbeddedProof is a local golden-path run's portable package from infrix-core (`infrix new verifiable-app`, infrix-core brief 28bs
+// row 2): its embedded proofs reach L4/G2 local-embedded only under LocalEmbeddedPin, the run's pin, passed to the verifier explicitly.
+// Without the pin it verifies L3.
+//
+//go:embed local-embedded-proof.infrix.json
+var LocalEmbeddedProof []byte
+
+// LocalEmbeddedPin is that run's pin file (pin.local-embedded.json), written next to its bundle, never in it.
+//
+//go:embed local-embedded.pin.json
+var LocalEmbeddedPin []byte

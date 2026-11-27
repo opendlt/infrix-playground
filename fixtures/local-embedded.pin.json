@@ -1,0 +1,21 @@
+{
+  "pin": {
+    "network": "local-embedded",
+    "chainId": "embedded.Directory",
+    "initialHeight": 1,
+    "genesisTime": {
+      "seconds": 1656633600,
+      "nanos": 0
+    },
+    "validators": {
+      "validators": [
+        {
+          "pubKey": "7d7fb11736485f79367932588e29061e11d865af0b2482e9464bc65d4d10efb0",
+          "votingPower": 10
+        }
+      ]
+    }
+  },
+  "governanceAccount": "acc://escrow-operator.acme/governance",
+  "governancePage": "acc://escrow-operator.acme/book/2"
+}

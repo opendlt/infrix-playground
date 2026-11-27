@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/opendlt/infrix-playground/fixtures"
@@ -163,4 +164,65 @@ func contains(s, sub string) bool {
 		}
 	}
 	return false
+}
+
+// runFlowNodeWith serves a node response carrying the local golden path's package and, when pin is set, the run's pin beside it.
+func runFlowNodeWith(t *testing.T, pin []byte) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v4/playground/runFlow" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		body := `{"networkLabel":"local in-process Accumulate network","proofLabel":"L4/G2 local-embedded","l0Verified":false,"package":` +
+			string(fixtures.LocalEmbeddedProof)
+		if pin != nil {
+			body += `,"pin":` + string(pin)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(body + `}`))
+	}))
+}
+
+// TestTheNodesPinIsPassedExplicitlyAndTheRunVerifiesL4G2LocalEmbedded (infrix-core brief 28bs row 2): the node returns the run's pin BESIDE
+// the package; the client passes it to the verifier explicitly, through the verifier's one pin parser, and the receipt is L4/G2 labelled
+// local-embedded with the --l0-pin command. Without the pin the same package verifies below L4 (nothing embedded is credited), and a pin for
+// another network is refused.
+func TestTheNodesPinIsPassedExplicitlyAndTheRunVerifiesL4G2LocalEmbedded(t *testing.T) {
+	run := func(pin []byte) (*RunResult, error) {
+		ts := runFlowNodeWith(t, pin)
+		defer ts.Close()
+		r := New(ts.URL, false)
+		r.HTTPClient = ts.Client()
+		return r.Run(context.Background(), ModeAnonymous, FlowGoldenEscrow, nil)
+	}
+	res, err := run(fixtures.LocalEmbeddedPin)
+	if err != nil {
+		t.Fatalf("run with the pin: %v", err)
+	}
+	a := res.Receipt.Assurance
+	if res.Receipt.Status != "verified" || a.ProofLevel != "L4" || a.GovernanceLevel != "G2" || res.Receipt.Verification.Network != "local-embedded" ||
+		!strings.Contains(res.Receipt.Verification.Command, "--l0-pin") || string(res.PinJSON) != strings.TrimSpace(string(fixtures.LocalEmbeddedPin)) {
+		t.Fatalf("with the run's pin the receipt is L4/G2 local-embedded: status=%s %s/%s network=%q command=%q pin=%d bytes",
+			res.Receipt.Status, a.ProofLevel, a.GovernanceLevel, res.Receipt.Verification.Network, res.Receipt.Verification.Command, len(res.PinJSON))
+	}
+	if nt := res.Receipt.NodeTrusted(); nt {
+		t.Fatal("the receipt must not require node trust")
+	}
+
+	res, err = run(nil)
+	if err != nil {
+		t.Fatalf("run without the pin: %v", err)
+	}
+	if res.Receipt.ClaimsL4() || res.Receipt.Assurance.ProofLevel == "L4" || res.Receipt.Verification.Network == "local-embedded" || res.PinJSON != nil {
+		t.Fatalf("without the pin nothing embedded is credited: %+v network=%q", res.Receipt.Assurance, res.Receipt.Verification.Network)
+	}
+
+	other := strings.Replace(string(fixtures.LocalEmbeddedPin), `"network": "local-embedded"`, `"network": "kermit"`, 1)
+	if other == string(fixtures.LocalEmbeddedPin) {
+		t.Fatal("the fixture pin names no local-embedded network")
+	}
+	if _, err := run([]byte(other)); err == nil || !strings.Contains(err.Error(), "local run pin") {
+		t.Fatalf("a pin for another network must be refused, got %v", err)
+	}
 }

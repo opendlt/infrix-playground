@@ -245,6 +245,7 @@ func (rm *RunManager) execute(ctx context.Context, r *Run, mode worker.Mode, flo
 		ProofLabel: result.ProofLabel,
 		Receipt:    result.Receipt,
 		BundleJSON: result.BundleJSON,
+		PinJSON:    result.PinJSON,
 	})
 	if serr != nil {
 		rm.metrics.Inc(MetricRunsFailed)
